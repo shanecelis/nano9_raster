@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use nano9_raster::{EllipseAa, EllipseRectAa, Fill, Plot, Point};
+use nano9_raster::{EllipseAa, Fill, Plot, Point};
 
 fn outline(a: isize, b: isize) -> BTreeMap<Point, u8> {
     let mut pixels = BTreeMap::new();
@@ -17,7 +17,7 @@ fn outline(a: isize, b: isize) -> BTreeMap<Point, u8> {
 
 fn rect_outline(p0: Point, p1: Point) -> BTreeMap<Point, u8> {
     let mut pixels = BTreeMap::new();
-    for (point, alpha) in EllipseRectAa::new(p0, p1) {
+    for (point, alpha) in EllipseAa::from_rect(p0, p1) {
         pixels
             .entry(point)
             .and_modify(|old: &mut u8| *old = (*old).max(alpha))
@@ -197,7 +197,7 @@ fn fill_tracks_supersampled_area() {
 #[test]
 fn odd_rectangle_fill_tracks_supersampled_area() {
     for &(p0, p1) in &[((0, 0), (7, 5)), ((-3, -2), (5, 3)), ((0, 0), (12, 5))] {
-        let actual = expand_fill(EllipseRectAa::new(p0, p1).fill());
+        let actual = expand_fill(EllipseAa::from_rect(p0, p1).fill());
         let expected = rect_oracle(p0, p1, 24);
         let keys: BTreeSet<_> = actual.keys().chain(expected.keys()).copied().collect();
         let mut sum = 0u64;

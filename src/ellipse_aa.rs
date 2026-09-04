@@ -11,20 +11,24 @@ use arraydeque::ArrayDeque;
 use crate::fill::{Fill, Plot, Span};
 use crate::{CircleAa, Point, PointAa};
 
-/// Anti-aliased axis-aligned ellipse given a center and radii.
+/// Anti-aliased axis-aligned ellipse.
 ///
-/// Equal radii use [`CircleAa`] directly and therefore produce exactly the
-/// same points, ordering, and coverage. Other ellipses are generated row by
-/// row in linear perimeter time using integer square roots. Coverage is
-/// calculated once in the first quadrant and reflected across both axes.
+/// Construct with [`EllipseAa::new`] for a center and radii, or
+/// [`EllipseAa::from_rect`] for opposite bounding-rectangle corners. Equal
+/// radii use [`CircleAa`] directly and therefore produce exactly the same
+/// points, ordering, and coverage. Other ellipses are generated row by row in
+/// linear perimeter time using integer square roots. Coverage is calculated
+/// once in the first quadrant and reflected across both axes.
 pub struct EllipseAa {
     #[cfg(feature = "fill")]
-    center: Point,
-    #[cfg(feature = "fill")]
-    a: isize,
-    #[cfg(feature = "fill")]
-    b: isize,
+    fill_source: EllipseAaFillSource,
     inner: EllipseAaInner,
+}
+
+#[cfg(feature = "fill")]
+enum EllipseAaFillSource {
+    Center { center: Point, a: isize, b: isize },
+    Rect { p0: Point, p1: Point },
 }
 
 // Keeping CircleAa inline preserves exact equal-radii output without requiring
@@ -33,6 +37,7 @@ pub struct EllipseAa {
 enum EllipseAaInner {
     Circle(CircleAa),
     Ellipse(EllipseAaOutline),
+    Rect(EllipseRectAaOutline),
     Horizontal { x: isize, x1: isize, y: isize },
     Vertical { x: isize, y: isize, y1: isize },
 }
@@ -62,11 +67,37 @@ impl EllipseAa {
         };
         Self {
             #[cfg(feature = "fill")]
-            center,
+            fill_source: EllipseAaFillSource::Center { center, a, b },
+            inner,
+        }
+    }
+
+    /// Closed ellipse filling the rectangle with opposite corners `p0` and
+    /// `p1`.
+    ///
+    /// Odd rectangle widths and heights place the geometric center between
+    /// pixel centers.
+    pub fn from_rect(p0: Point, p1: Point) -> Self {
+        let (x0, x1) = (p0.0.min(p1.0), p0.0.max(p1.0));
+        let (y0, y1) = (p0.1.min(p1.1), p0.1.max(p1.1));
+        let a = x1 - x0;
+        let b = y1 - y0;
+        if a % 2 == 0 && b % 2 == 0 {
+            return Self::new((x0 + a / 2, y0 + b / 2), a / 2, b / 2);
+        }
+        let inner = if b == 0 {
+            EllipseAaInner::Horizontal { x: x0, x1, y: y0 }
+        } else if a == 0 {
+            EllipseAaInner::Vertical { x: x0, y: y0, y1 }
+        } else {
+            EllipseAaInner::Rect(EllipseRectAaOutline::new((x0, y0), (x1, y1)))
+        };
+        Self {
             #[cfg(feature = "fill")]
-            a,
-            #[cfg(feature = "fill")]
-            b,
+            fill_source: EllipseAaFillSource::Rect {
+                p0: (x0, y0),
+                p1: (x1, y1),
+            },
             inner,
         }
     }
@@ -95,90 +126,7 @@ impl Iterator for EllipseAa {
                 Some(point)
             }
             EllipseAaInner::Ellipse(ellipse) => ellipse.next(),
-        }
-    }
-}
-
-/// Anti-aliased axis-aligned ellipse inscribed in a rectangle.
-///
-/// Unlike [`EllipseAa`], this supports odd rectangle widths and heights whose
-/// geometric center lies between pixel centers.
-pub struct EllipseRectAa {
-    #[cfg(feature = "fill")]
-    x0: isize,
-    #[cfg(feature = "fill")]
-    y0: isize,
-    #[cfg(feature = "fill")]
-    x1: isize,
-    #[cfg(feature = "fill")]
-    y1: isize,
-    inner: EllipseRectAaInner,
-}
-
-#[allow(clippy::large_enum_variant)]
-enum EllipseRectAaInner {
-    Ellipse(EllipseAa),
-    Rect(EllipseRectAaOutline),
-    Horizontal { x: isize, x1: isize, y: isize },
-    Vertical { x: isize, y: isize, y1: isize },
-}
-
-impl EllipseRectAa {
-    /// Closed ellipse filling the rectangle with opposite corners `p0` and
-    /// `p1`.
-    pub fn new(p0: Point, p1: Point) -> Self {
-        let (x0, x1) = (p0.0.min(p1.0), p0.0.max(p1.0));
-        let (y0, y1) = (p0.1.min(p1.1), p0.1.max(p1.1));
-        let a = x1 - x0;
-        let b = y1 - y0;
-        let inner = if a == 0 && b == 0 {
-            EllipseRectAaInner::Ellipse(EllipseAa::new((x0, y0), 0, 0))
-        } else if b == 0 {
-            EllipseRectAaInner::Horizontal { x: x0, x1, y: y0 }
-        } else if a == 0 {
-            EllipseRectAaInner::Vertical { x: x0, y: y0, y1 }
-        } else if a % 2 == 0 && b % 2 == 0 {
-            EllipseRectAaInner::Ellipse(EllipseAa::new((x0 + a / 2, y0 + b / 2), a / 2, b / 2))
-        } else {
-            EllipseRectAaInner::Rect(EllipseRectAaOutline::new((x0, y0), (x1, y1)))
-        };
-        Self {
-            #[cfg(feature = "fill")]
-            x0,
-            #[cfg(feature = "fill")]
-            y0,
-            #[cfg(feature = "fill")]
-            x1,
-            #[cfg(feature = "fill")]
-            y1,
-            inner,
-        }
-    }
-}
-
-impl Iterator for EllipseRectAa {
-    type Item = PointAa;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.inner {
-            EllipseRectAaInner::Ellipse(ellipse) => ellipse.next(),
-            EllipseRectAaInner::Rect(ellipse) => ellipse.next(),
-            EllipseRectAaInner::Horizontal { x, x1, y } => {
-                if *x > *x1 {
-                    return None;
-                }
-                let point = ((*x, *y), 255);
-                *x += 1;
-                Some(point)
-            }
-            EllipseRectAaInner::Vertical { x, y, y1 } => {
-                if *y > *y1 {
-                    return None;
-                }
-                let point = ((*x, *y), 255);
-                *y += 1;
-                Some(point)
-            }
+            EllipseAaInner::Rect(ellipse) => ellipse.next(),
         }
     }
 }
@@ -484,16 +432,39 @@ impl Fill<Plot> for EllipseAa {
     /// exact box-filtered pixel-area integral. Non-circular rows calculate one
     /// quadrant and reflect edge points and spans across both axes.
     fn fill(self) -> impl Iterator<Item = Plot> {
-        EllipseAaFill::new(self.center, self.a, self.b)
+        EllipseAaUnifiedFill {
+            inner: match self.fill_source {
+                EllipseAaFillSource::Center { center, a, b } => {
+                    EllipseAaUnifiedFillInner::Center(EllipseAaFill::new(center, a, b))
+                }
+                EllipseAaFillSource::Rect { p0, p1 } => {
+                    EllipseAaUnifiedFillInner::Rect(EllipseRectAaFill::new(p0, p1))
+                }
+            },
+        }
     }
 }
 
 #[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "ellipse-aa", feature = "fill"))))]
-impl Fill<Plot> for EllipseRectAa {
-    /// Filled anti-aliased ellipse inscribed in this rectangle.
-    fn fill(self) -> impl Iterator<Item = Plot> {
-        EllipseRectAaFill::new((self.x0, self.y0), (self.x1, self.y1))
+struct EllipseAaUnifiedFill {
+    inner: EllipseAaUnifiedFillInner,
+}
+
+#[cfg(feature = "fill")]
+enum EllipseAaUnifiedFillInner {
+    Center(EllipseAaFill),
+    Rect(EllipseRectAaFill),
+}
+
+#[cfg(feature = "fill")]
+impl Iterator for EllipseAaUnifiedFill {
+    type Item = Plot;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.inner {
+            EllipseAaUnifiedFillInner::Center(fill) => fill.next(),
+            EllipseAaUnifiedFillInner::Rect(fill) => fill.next(),
+        }
     }
 }
 
@@ -1038,7 +1009,7 @@ fn isqrt(value: u128) -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{EllipseAa, EllipseRectAa};
+    use super::EllipseAa;
     use crate::CircleAa;
     #[cfg(feature = "fill")]
     use crate::{Fill, Plot};
@@ -1071,9 +1042,11 @@ mod tests {
         for a in 0..=16 {
             for b in 0..=16 {
                 let ellipse: Vec<_> = EllipseAa::new(center, a, b).collect();
-                let rect: Vec<_> =
-                    EllipseRectAa::new((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
-                        .collect();
+                let rect: Vec<_> = EllipseAa::from_rect(
+                    (center.0 - a, center.1 - b),
+                    (center.0 + a, center.1 + b),
+                )
+                .collect();
                 assert_eq!(rect, ellipse, "a={a} b={b}");
             }
         }
@@ -1087,7 +1060,7 @@ mod tests {
             ((-4, -2), (3, 3)),
             ((5, 8), (-2, 3)),
         ] {
-            let pixels = blend(EllipseRectAa::new(p0, p1));
+            let pixels = blend(EllipseAa::from_rect(p0, p1));
             let center2 = (p0.0 + p1.0, p0.1 + p1.1);
             for (&(x, y), &alpha) in &pixels {
                 assert!(alpha > 0, "{p0:?} {p1:?} point=({x},{y})");
@@ -1222,10 +1195,12 @@ mod tests {
         for a in 0..=16 {
             for b in 0..=16 {
                 let ellipse: Vec<_> = EllipseAa::new(center, a, b).fill().collect();
-                let rect: Vec<_> =
-                    EllipseRectAa::new((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
-                        .fill()
-                        .collect();
+                let rect: Vec<_> = EllipseAa::from_rect(
+                    (center.0 - a, center.1 - b),
+                    (center.0 + a, center.1 + b),
+                )
+                .fill()
+                .collect();
                 assert_eq!(rect, ellipse, "a={a} b={b}");
             }
         }
@@ -1240,7 +1215,7 @@ mod tests {
             ((-4, -2), (3, 3)),
             ((5, 8), (-2, 3)),
         ] {
-            let pixels = expand_fill(EllipseRectAa::new(p0, p1).fill());
+            let pixels = expand_fill(EllipseAa::from_rect(p0, p1).fill());
             let center2 = (p0.0 + p1.0, p0.1 + p1.1);
             for (&(x, y), &alpha) in &pixels {
                 assert_eq!(pixels.get(&(center2.0 - x, y)), Some(&alpha));

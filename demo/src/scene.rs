@@ -1,8 +1,8 @@
 //! Shared autoplay scene used by the WASM demo and the GIF recorder.
 
 use nano9_raster::{
-    Circle, CircleAa, EllipseRect, EllipseRectAa, Fill, Inclusive, Line, LineAa, Plot, Point,
-    QuadBezier, QuadBezierAa, WideLineAa,
+    Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
+    QuadBezierAa, WideLineAa,
 };
 
 pub const WIDTH: u32 = 64;
@@ -186,16 +186,16 @@ impl Scene {
                 .map(|p| (p, 255))
                 .collect(),
             Kind::Ellipse if self.anti_alias && self.fill => {
-                Self::expand_plots(EllipseRectAa::new(start, end).fill())
+                Self::expand_plots(EllipseAa::from_rect(start, end).fill())
             }
-            Kind::Ellipse if self.anti_alias => EllipseRectAa::new(start, end)
+            Kind::Ellipse if self.anti_alias => EllipseAa::from_rect(start, end)
                 .filter(|(_, c)| *c > 0)
                 .collect(),
-            Kind::Ellipse if self.fill => EllipseRect::new(start, end)
+            Kind::Ellipse if self.fill => Ellipse::from_rect(start, end)
                 .fill()
                 .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
                 .collect(),
-            Kind::Ellipse => EllipseRect::new(start, end).map(|p| (p, 255)).collect(),
+            Kind::Ellipse => Ellipse::from_rect(start, end).map(|p| (p, 255)).collect(),
             Kind::QuadBezier if self.anti_alias => QuadBezierAa::new(start, self.control, end)
                 .filter(|(_, c)| *c > 0)
                 .collect(),

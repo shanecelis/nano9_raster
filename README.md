@@ -40,7 +40,7 @@ available as optional Cargo features.
 |------|------------------|------------------------------|--------------------|-------------------------------|
 | 0    | Line             | `Line`, `LineAa`             | Bresenham, Pitteway | `line`, `aa`                  |
 | 1    | Circle           | `Circle`, `CircleAa`, `Fill` | Bresenham, Fu       | `circle`, `circle-aa`, `fill` |
-| 2    | Ellipse          | `EllipseRect`, `EllipseAa`, `EllipseRectAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
+| 2    | Ellipse          | `Ellipse`, `EllipseAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
 | 3    | Quadratic Bézier | `QuadBezier`, `QuadBezierAa` | Zingl              | `bezier`, `aa`                |
 | 4    | Wide line        | `WideLineAa`                 | Murphy             | `wide-line`                   |
 | —    | 3D Line          | `Line3d`                     | Kaufman            | `line3d`                      |
@@ -79,13 +79,15 @@ convenient.
 ## Fill
 
 The `fill` Cargo feature adds the `Fill` trait on `Circle`, `CircleAa`,
-`Ellipse`, `EllipseAa`, `EllipseRect`, and `EllipseRectAa`. The trait is generic
-on its iterator item and defaults to `Span`: one solid inclusive `[x0, x1]`
-chord per distinct row. The AA shapes implement `Fill<Plot>` and mix those spans
-with `Point`s carrying anti-aliased rim coverage. The circle uses Vadillo's
-integer algorithm; the ellipses extend its squared implicit-function band with
-the ellipse's local gradient. Even-sized `EllipseRectAa` bounds produce exactly
-the corresponding center-and-radii `EllipseAa` result.
+`Ellipse`, and `EllipseAa`. Ellipses can be constructed from a center and radii
+with `new`, or from opposite bounding-rectangle corners with `from_rect`. The
+trait is generic on its iterator item and defaults to `Span`: one solid
+inclusive `[x0, x1]` chord per distinct row. The AA shapes implement
+`Fill<Plot>` and mix those spans with `Point`s carrying anti-aliased rim
+coverage. The circle uses Vadillo's integer algorithm; the ellipses extend its
+squared implicit-function band with the ellipse's local gradient. Even-sized
+rectangle bounds produce exactly the corresponding center-and-radii
+`EllipseAa` result.
 
 ## Inclusive
 
@@ -159,7 +161,7 @@ was rejected.
 - M. L. V. Pitteway, ["Algorithm for drawing ellipses or hyperbolae with a
   digital plotter"](https://doi.org/10.1093/comjnl/10.3.282), *The Computer
   Journal*, 10(3):282–289, 1967.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/pitteway-1967-ellipse.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `Ellipse` `EllipseRect`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/pitteway-1967-ellipse.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `Ellipse`
 - M. L. V. Pitteway and D. J. Watkinson, ["Bresenham's algorithm with Grey
   scale"](https://doi.org/10.1145/359024.359027), *Communications of the ACM*,
   23(11):625–626, 1980.

@@ -9,8 +9,61 @@ enum EllipsePhase {
     Tip { which: u8 },
 }
 
-/// Iterator over the pixels of an axis-aligned ellipse given a center and radii
+/// Iterator over the pixels of an axis-aligned ellipse.
+///
+/// Construct with [`Ellipse::new`] for a center and radii, or
+/// [`Ellipse::from_rect`] for opposite bounding-rectangle corners.
 pub struct Ellipse {
+    inner: EllipseKind,
+}
+
+enum EllipseKind {
+    Center(EllipseCenter),
+    Rect(EllipseRect),
+}
+
+impl Ellipse {
+    /// Closed ellipse centered at `center` with horizontal radius `a` and
+    /// vertical radius `b`. Negative radii are treated as their absolute value.
+    #[inline]
+    pub fn new(center: Point, a: isize, b: isize) -> Self {
+        Self {
+            inner: EllipseKind::Center(EllipseCenter::new(center, a, b)),
+        }
+    }
+
+    /// Closed ellipse filling the rectangle with opposite corners `p0` and
+    /// `p1`.
+    #[inline]
+    pub fn from_rect(p0: Point, p1: Point) -> Self {
+        Self {
+            inner: EllipseKind::Rect(EllipseRect::new(p0, p1)),
+        }
+    }
+
+    /// Call `f` with every outline pixel.
+    #[inline]
+    pub fn for_each<F: FnMut(Point)>(self, mut f: F) {
+        match self.inner {
+            EllipseKind::Center(ellipse) => ellipse.for_each(&mut f),
+            EllipseKind::Rect(ellipse) => ellipse.for_each(f),
+        }
+    }
+}
+
+impl Iterator for Ellipse {
+    type Item = Point;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.inner {
+            EllipseKind::Center(ellipse) => ellipse.next(),
+            EllipseKind::Rect(ellipse) => ellipse.next(),
+        }
+    }
+}
+
+struct EllipseCenter {
     xm: isize,
     ym: isize,
     a: isize,
@@ -22,18 +75,16 @@ pub struct Ellipse {
     done: bool,
 }
 
-impl Ellipse {
-    /// Closed ellipse centered at `center` with horizontal radius `a` and
-    /// vertical radius `b`. Negative radii are treated as their absolute value.
+impl EllipseCenter {
     #[inline]
-    pub fn new(center: Point, a: isize, b: isize) -> Self {
+    fn new(center: Point, a: isize, b: isize) -> Self {
         let a = a.abs();
         let b = b.abs();
         let x = -a;
         let e2 = (b as i64) * (b as i64);
         let err = (x as i64) * (2 * e2 + x as i64) + e2;
 
-        Ellipse {
+        EllipseCenter {
             xm: center.0,
             ym: center.1,
             a,
@@ -43,6 +94,13 @@ impl Ellipse {
             err,
             phase: EllipsePhase::Main { quad: 0 },
             done: false,
+        }
+    }
+
+    #[inline]
+    fn for_each<F: FnMut(Point)>(self, mut f: F) {
+        for point in self {
+            f(point);
         }
     }
 
@@ -64,11 +122,10 @@ impl Ellipse {
 }
 
 #[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
-impl Fill for Ellipse {
+impl EllipseCenter {
     #[inline]
-    fn fill(self) -> impl Iterator<Item = Span> {
-        EllipseFill {
+    fn fill(self) -> EllipseCenterFill {
+        EllipseCenterFill {
             e: self,
             pending: None,
             last_y: None,
@@ -77,17 +134,16 @@ impl Fill for Ellipse {
     }
 }
 
-/// Iterator over [`Span`] chords of a filled [`Ellipse`]. Inclusive `[x0, x1]`.
 #[cfg(feature = "fill")]
-pub(crate) struct EllipseFill {
-    e: Ellipse,
+struct EllipseCenterFill {
+    e: EllipseCenter,
     pending: Option<Span>,
     last_y: Option<isize>,
     tips: bool,
 }
 
 #[cfg(feature = "fill")]
-impl Iterator for EllipseFill {
+impl Iterator for EllipseCenterFill {
     type Item = Span;
 
     #[inline]
@@ -144,7 +200,7 @@ impl Iterator for EllipseFill {
     }
 }
 
-impl Iterator for Ellipse {
+impl Iterator for EllipseCenter {
     type Item = Point;
 
     #[inline]
@@ -211,8 +267,8 @@ impl Iterator for Ellipse {
     }
 }
 
-/// Iterator over an axis-aligned ellipse inscribed in a rectangle
-pub struct EllipseRect {
+/// Iterator over an axis-aligned ellipse inscribed in a rectangle.
+struct EllipseRect {
     x0: isize,
     y0: isize,
     x1: isize,
@@ -230,7 +286,7 @@ pub struct EllipseRect {
 impl EllipseRect {
     /// Closed ellipse filling the rectangle with opposite corners `p0` and `p1`.
     #[inline]
-    pub fn new(p0: Point, p1: Point) -> Self {
+    fn new(p0: Point, p1: Point) -> Self {
         let (mut x0, mut y0) = p0;
         let (mut x1, y1) = p1;
         let a = (x1 - x0).abs() as i64;
@@ -310,7 +366,7 @@ impl EllipseRect {
 
     /// Call `f` with every outline pixel. Faster than the iterator when inlined.
     #[inline]
-    pub fn for_each<F: FnMut(Point)>(mut self, mut f: F) {
+    fn for_each<F: FnMut(Point)>(mut self, mut f: F) {
         while let EllipsePhase::Main { .. } = self.phase {
             let pts = self.points4();
             f(pts[0]);
@@ -332,10 +388,9 @@ impl EllipseRect {
 }
 
 #[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
-impl Fill for EllipseRect {
+impl EllipseRect {
     #[inline]
-    fn fill(self) -> impl Iterator<Item = Span> {
+    fn fill(self) -> EllipseRectFill {
         EllipseRectFill {
             e: self,
             pending: [Span { x0: 0, x1: 0, y: 0 }; 2],
@@ -350,7 +405,7 @@ impl Fill for EllipseRect {
 
 /// Iterator over [`Span`] chords of a filled [`EllipseRect`]. Inclusive `[x0, x1]`.
 #[cfg(feature = "fill")]
-pub(crate) struct EllipseRectFill {
+struct EllipseRectFill {
     e: EllipseRect,
     pending: [Span; 2],
     pending_len: u8,
@@ -506,9 +561,40 @@ impl Iterator for EllipseRect {
     }
 }
 
+#[cfg(feature = "fill")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
+impl Fill for Ellipse {
+    #[inline]
+    fn fill(self) -> impl Iterator<Item = Span> {
+        match self.inner {
+            EllipseKind::Center(ellipse) => EllipseFill::Center(ellipse.fill()),
+            EllipseKind::Rect(ellipse) => EllipseFill::Rect(ellipse.fill()),
+        }
+    }
+}
+
+#[cfg(feature = "fill")]
+enum EllipseFill {
+    Center(EllipseCenterFill),
+    Rect(EllipseRectFill),
+}
+
+#[cfg(feature = "fill")]
+impl Iterator for EllipseFill {
+    type Item = Span;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Center(fill) => fill.next(),
+            Self::Rect(fill) => fill.next(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Ellipse, EllipseRect};
+    use super::Ellipse;
     #[cfg(feature = "fill")]
     use crate::Point;
     use std::vec::Vec;
@@ -574,7 +660,7 @@ mod tests {
 
     #[test]
     fn test_ellipse_rect() {
-        let res: Vec<_> = EllipseRect::new((0, 0), (8, 4)).collect();
+        let res: Vec<_> = Ellipse::from_rect((0, 0), (8, 4)).collect();
         assert_eq!(
             res,
             [
@@ -614,9 +700,9 @@ mod tests {
             ((2, 3), (12, 10)),
             ((10, 1), (1, 8)),
         ] {
-            let a: Vec<_> = EllipseRect::new(p0, p1).collect();
+            let a: Vec<_> = Ellipse::from_rect(p0, p1).collect();
             let mut b = Vec::new();
-            EllipseRect::new(p0, p1).for_each(|p| b.push(p));
+            Ellipse::from_rect(p0, p1).for_each(|p| b.push(p));
             assert_eq!(a, b, "{p0:?} {p1:?}");
         }
     }
@@ -676,7 +762,7 @@ mod tests {
     fn test_ellipse_rect_fill() {
         use crate::fill::{Fill, Span};
 
-        let res: Vec<_> = EllipseRect::new((0, 0), (0, 0)).fill().collect();
+        let res: Vec<_> = Ellipse::from_rect((0, 0), (0, 0)).fill().collect();
         assert_eq!(res, [Span { x0: 0, x1: 0, y: 0 }]);
 
         for &(p0, p1) in &[
@@ -686,8 +772,8 @@ mod tests {
             ((10, 1), (1, 8)),
             ((5, 5), (5, 12)),
         ] {
-            let spans: Vec<_> = EllipseRect::new(p0, p1).fill().collect();
-            let outline: Vec<_> = EllipseRect::new(p0, p1).collect();
+            let spans: Vec<_> = Ellipse::from_rect(p0, p1).fill().collect();
+            let outline: Vec<_> = Ellipse::from_rect(p0, p1).collect();
             assert_fill_ok(&spans, &outline, "ellipse_rect");
         }
     }
