@@ -374,19 +374,17 @@ mod tests {
             let old = (grid[y as usize] >> shift) & 0xf;
             grid[y as usize] = (grid[y as usize] & !(0xf << shift)) | (old.max(nyb) << shift);
         }
-        assert_eq!(
-            grid,
-            [
-                0x03dfd300,
-                0x3c202c30,
-                0xd20002d0,
-                0xf00000f0,
-                0xd20002d0,
-                0x3c202c30,
-                0x03dfd300,
-                0x00000000,
-            ]
-        );
+        #[rustfmt::skip]
+        assert_eq!(grid, [
+            0x03dfd300,
+            0x3c202c30,
+            0xd20002d0,
+            0xf00000f0,
+            0xd20002d0,
+            0x3c202c30,
+            0x03dfd300,
+            0x00000000,
+        ]);
     }
 
     /// After max-blending duplicates, every pixel's coverage must be close to
@@ -566,19 +564,17 @@ mod tests {
                 Plot::Point(((x, y), c)) => set(x, y, c),
             }
         }
-        assert_eq!(
-            grid,
-            [
-                0x00575000,
-                0x0afffa00,
-                0x5fffff50,
-                0x7fffff70,
-                0x5fffff50,
-                0x0afffa00,
-                0x00575000,
-                0x00000000,
-            ]
-        );
+        #[rustfmt::skip]
+        assert_eq!(grid, [
+            0x00575000,
+            0x0afffa00,
+            0x5fffff50,
+            0x7fffff70,
+            0x5fffff50,
+            0x0afffa00,
+            0x00575000,
+            0x00000000,
+        ]);
     }
 
     #[cfg(feature = "fill")]

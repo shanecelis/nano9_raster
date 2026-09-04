@@ -1145,13 +1145,17 @@ mod tests {
             let shift = ((7 - x) * 4) as u32;
             grid[y as usize] |= ((alpha as u32) >> 4) << shift;
         }
-        assert_eq!(
-            grid,
-            [
-                0x00000000, 0x07efe700, 0x98101890, 0xf00000f0, 0x98101890, 0x07efe700, 0x00000000,
-                0x00000000,
-            ]
-        );
+        #[rustfmt::skip]
+        assert_eq!(grid, [
+            0x00000000,
+            0x07efe700,
+            0x98101890,
+            0xf00000f0,
+            0x98101890,
+            0x07efe700,
+            0x00000000,
+            0x00000000,
+        ]);
     }
 
     #[cfg(feature = "fill")]
@@ -1292,12 +1296,16 @@ mod tests {
             let shift = ((7 - (x + 3)) * 4) as u32;
             grid[(y + 3) as usize] |= ((alpha as u32) >> 4) << shift;
         }
-        assert_eq!(
-            grid,
-            [
-                0x00000000, 0x01676100, 0x3fffff30, 0x7fffff70, 0x3fffff30, 0x01676100, 0x00000000,
-                0x00000000,
-            ]
-        );
+        #[rustfmt::skip]
+        assert_eq!(grid, [
+            0x00000000,
+            0x01676100,
+            0x3fffff30,
+            0x7fffff70,
+            0x3fffff30,
+            0x01676100,
+            0x00000000,
+            0x00000000,
+        ]);
     }
 }
