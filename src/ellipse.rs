@@ -211,11 +211,6 @@ impl Iterator for Ellipse {
     }
 }
 
-enum RectPhase {
-    Main { quad: u8 },
-    Tip { which: u8 },
-}
-
 /// Iterator over an axis-aligned ellipse inscribed in a rectangle
 pub struct EllipseRect {
     x0: isize,
@@ -228,7 +223,7 @@ pub struct EllipseRect {
     dx: i64,
     dy: i64,
     err: i64,
-    phase: RectPhase,
+    phase: EllipsePhase,
     done: bool,
 }
 
@@ -268,7 +263,7 @@ impl EllipseRect {
             dx,
             dy,
             err,
-            phase: RectPhase::Main { quad: 0 },
+            phase: EllipsePhase::Main { quad: 0 },
             done: false,
         }
     }
@@ -309,14 +304,14 @@ impl EllipseRect {
             self.err += self.dx;
         }
         if self.x0 > self.x1 {
-            self.phase = RectPhase::Tip { which: 0 };
+            self.phase = EllipsePhase::Tip { which: 0 };
         }
     }
 
     /// Call `f` with every outline pixel. Faster than the iterator when inlined.
     #[inline]
     pub fn for_each<F: FnMut(Point)>(mut self, mut f: F) {
-        while let RectPhase::Main { .. } = self.phase {
+        while let EllipsePhase::Main { .. } = self.phase {
             let pts = self.points4();
             f(pts[0]);
             f(pts[1]);
@@ -435,7 +430,7 @@ impl Iterator for EllipseRectFill {
                 return None;
             }
 
-            if let RectPhase::Main { .. } = self.e.phase {
+            if let EllipsePhase::Main { .. } = self.e.phase {
                 self.absorb_y0(self.e.x0, self.e.x1, self.e.y0);
                 if self.e.y0 != self.e.y1 {
                     self.absorb_y1(self.e.x0, self.e.x1, self.e.y1);
@@ -474,19 +469,19 @@ impl Iterator for EllipseRect {
         }
 
         match self.phase {
-            RectPhase::Main { quad } => {
+            EllipsePhase::Main { quad } => {
                 let p = self.points4()[quad as usize];
 
                 if quad < 3 {
-                    self.phase = RectPhase::Main { quad: quad + 1 };
+                    self.phase = EllipsePhase::Main { quad: quad + 1 };
                 } else {
-                    self.phase = RectPhase::Main { quad: 0 };
+                    self.phase = EllipsePhase::Main { quad: 0 };
                     self.advance_main();
                 }
 
                 Some(p)
             }
-            RectPhase::Tip { which } => {
+            EllipsePhase::Tip { which } => {
                 // `while (y0 - y1 <= b)` — only test at the start of a 4-pixel group.
                 if which == 0 && (self.y0 - self.y1) as i64 > self.b {
                     self.done = true;
@@ -499,10 +494,10 @@ impl Iterator for EllipseRect {
                     if which == 1 {
                         self.y0 += 1;
                     }
-                    self.phase = RectPhase::Tip { which: which + 1 };
+                    self.phase = EllipsePhase::Tip { which: which + 1 };
                 } else {
                     self.y1 -= 1;
-                    self.phase = RectPhase::Tip { which: 0 };
+                    self.phase = EllipsePhase::Tip { which: 0 };
                 }
 
                 Some(p)
