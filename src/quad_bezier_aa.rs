@@ -255,8 +255,8 @@ impl Iterator for QuadBezierAa {
 #[cfg(test)]
 mod tests {
     use super::QuadBezierAa;
-    use crate::QuadBezier;
     use crate::Point;
+    use crate::QuadBezier;
     use std::fs;
     use std::path::PathBuf;
     use std::vec::Vec;
@@ -317,9 +317,8 @@ mod tests {
     }
 
     fn aa_covers(p: Point, aa: &[(Point, u8)]) -> bool {
-        aa.iter().any(|&((x, y), c)| {
-            c > 0 && (x - p.0).abs() <= 1 && (y - p.1).abs() <= 1
-        })
+        aa.iter()
+            .any(|&((x, y), c)| c > 0 && (x - p.0).abs() <= 1 && (y - p.1).abs() <= 1)
     }
 
     fn write_comparison_ppm(

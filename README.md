@@ -36,15 +36,14 @@ Bresenham published algorithms for lines and circles. And a number of other
 shapes were generalized from his work (see references below), which are
 available as optional Cargo features.
 
-| Demo | Shape            | Type                         | Author             | Feature                       |
-|------|------------------|------------------------------|--------------------|-------------------------------|
-| 0    | Line             | `Line`, `LineAa`             | Bresenham, Pitteway | `line`, `aa`                  |
-| 1    | Circle           | `Circle`, `CircleAa`, `Fill` | Bresenham, Fu       | `circle`, `circle-aa`, `fill` |
-| 2    | Ellipse          | `Ellipse`, `EllipseAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
-| 3    | Quadratic Bézier | `QuadBezier`, `QuadBezierAa` | Zingl              | `bezier`, `aa`                |
-| 4    | Wide line        | `WideLine`, `WideLineAa`     | Murphy             | `wide-line`                   |
-| —    | 3D Line          | `Line3d`                     | Kaufman            | `line3d`                      |
-| —    | Ellipse          | `Ellipse`                    | Pitteway           | `ellipse`                     |
+| Demo | Shape            | AA option | fillable | Author              | Feature                         |
+|------|------------------|-----------|----------|---------------------|---------------------------------|
+| 0    | Line             | X         |          | Bresenham, Pitteway | `line`, `aa`                    |
+| 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `circle-aa`, `fill`   |
+| 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `ellipse-aa`, `fill` |
+| 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
+| 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
+| -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
 
 
 ## Demo

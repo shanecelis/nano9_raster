@@ -1,8 +1,9 @@
 //! Thick line from Alois Zingl's `plotLineWidth`.
 //!
 //! [`WideLine`] keeps the pixels whose center lies inside the stroke.
-//! [`WideLineAa`] is the same walk with coverage. Coverage is inverted from
-//! Zingl's `setPixelAA`: `255` is fully on the curve, `0` is fully off.
+#![cfg_attr(feature = "aa", doc = "[`WideLineAa`] is the same walk with coverage.")]
+//! Coverage is inverted from Zingl's `setPixelAA`: `255` is fully on the curve,
+//! `0` is fully off.
 
 use crate::{Point, PointAa};
 
@@ -26,7 +27,7 @@ enum LwPhase {
 /// Line of a given pixel width
 ///
 /// Inclusive: `[start, end]`. Yields a pixel when its center lies inside the
-/// stroke (the same pixels [`WideLineAa`] would give coverage ≥ 128).
+/// stroke (coverage ≥ 128).
 pub struct WideLine {
     x0: isize,
     y0: isize,
@@ -81,7 +82,7 @@ impl WideLine {
         coverage_f(255.0 * (dist.abs() / self.ed - self.wd + 1.0))
     }
 
-    fn next_covered(&mut self) -> Option<PointAa> {
+    pub(crate) fn next_covered(&mut self) -> Option<PointAa> {
         while !self.done {
             match self.phase {
                 LwPhase::Center => {
@@ -169,35 +170,10 @@ impl Iterator for WideLine {
     }
 }
 
-/// Anti-aliased line of a given pixel width
-///
-/// Inclusive: `[start, end]`.
-pub struct WideLineAa {
-    line: WideLine,
-}
-
-impl WideLineAa {
-    /// Inclusive anti-aliased line (`[start, end]`) with width `wd`.
-    pub fn new(start: Point, end: Point, wd: f32) -> Self {
-        WideLineAa {
-            line: WideLine::new(start, end, wd),
-        }
-    }
-}
-
-impl Iterator for WideLineAa {
-    type Item = PointAa;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.line.next_covered()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{WideLine, WideLineAa};
-    use crate::{Point, PointAa};
-    use std::vec::Vec;
+    use super::WideLine;
+    use crate::Point;
 
     fn plot_binary(points: impl Iterator<Item = Point>) -> [u8; 8] {
         let mut grid = [0u8; 8];
@@ -211,83 +187,7 @@ mod tests {
         grid
     }
 
-    fn plot_hex(points: impl Iterator<Item = PointAa>) -> [u32; 8] {
-        let mut grid = [0u32; 8];
-        for ((x, y), c) in points {
-            assert!(
-                (0..8).contains(&x) && (0..8).contains(&y),
-                "({x},{y}) off grid"
-            );
-            let shift = ((7 - x) * 4) as u32;
-            let nyb = (c as u32) >> 4;
-            let old = (grid[y as usize] >> shift) & 0xf;
-            grid[y as usize] = (grid[y as usize] & !(0xf << shift)) | (old.max(nyb) << shift);
-        }
-        grid
-    }
-
-    #[test]
-    fn test_wide_line() {
-        let res: Vec<_> = WideLineAa::new((0, 0), (4, 0), 1.0).collect();
-        assert_eq!(
-            res,
-            [
-                ((0, 0), 255),
-                ((1, 0), 255),
-                ((2, 0), 255),
-                ((3, 0), 255),
-                ((4, 0), 255)
-            ]
-        );
-
-        let res: Vec<_> = WideLineAa::new((0, 0), (5, 2), 3.0).collect();
-        assert_eq!(
-            res,
-            [
-                ((0, 0), 255),
-                ((0, 1), 255),
-                ((0, 2), 37),
-                ((1, 0), 255),
-                ((1, 1), 255),
-                ((1, 2), 132),
-                ((2, 0), 255),
-                ((3, 0), 226),
-                ((4, 0), 132),
-                ((5, 0), 37),
-                ((2, 1), 255),
-                ((2, 2), 226),
-                ((3, 1), 255),
-                ((3, 2), 255),
-                ((3, 3), 84),
-                ((4, 1), 255),
-                ((4, 2), 255),
-                ((4, 3), 179),
-                ((5, 1), 255),
-                ((5, 2), 255),
-                ((5, 3), 255),
-                ((5, 4), 37)
-            ]
-        );
-    }
-
-    #[test]
-    fn test_wide_line_matches_aa_threshold() {
-        for (start, end, wd) in [
-            ((0, 0), (4, 0), 1.0),
-            ((0, 0), (5, 2), 3.0),
-            ((1, 0), (2, 6), 3.0),
-            ((6, 1), (1, 5), 2.5),
-        ] {
-            let hard: Vec<_> = WideLine::new(start, end, wd).collect();
-            let from_aa: Vec<_> = WideLineAa::new(start, end, wd)
-                .filter(|(_, c)| *c >= 128)
-                .map(|(p, _)| p)
-                .collect();
-            assert_eq!(hard, from_aa, "{start:?} -> {end:?} wd={wd}");
-        }
-    }
-
-    /// Horizontal hairline: binary and hex plots of the same stroke.
+    /// Horizontal hairline. Compare the hex plot in `wide_line_aa`.
     #[test]
     fn test_wide_line_shape_horizontal() {
         #[rustfmt::skip]
@@ -301,20 +201,9 @@ mod tests {
             0b00000000,
             0b00000000,
         ]);
-        #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((0, 3), (7, 3), 1.0)), [
-            0x00000000,
-            0x00000000,
-            0x00000000,
-            0xffffffff,
-            0x00000000,
-            0x00000000,
-            0x00000000,
-            0x00000000,
-        ]);
     }
 
-    /// Shallow width-3 stroke: binary is the hex plot thresholded at nybble 8.
+    /// Shallow width-3 stroke. AA counterpart is the hex plot in `wide_line_aa`.
     #[test]
     fn test_wide_line_shape_shallow() {
         #[rustfmt::skip]
@@ -328,20 +217,9 @@ mod tests {
             0b00000000,
             0b00000000,
         ]);
-        #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((0, 0), (5, 2), 3.0)), [
-            0xfffe8200,
-            0xffffff00,
-            0x28efff00,
-            0x0005bf00,
-            0x00000200,
-            0x00000000,
-            0x00000000,
-            0x00000000,
-        ]);
     }
 
-    /// Steep width-3 stroke: binary is the hex plot thresholded at nybble 8.
+    /// Steep width-3 stroke. AA counterpart is the hex plot in `wide_line_aa`.
     #[test]
     fn test_wide_line_shape_steep() {
         #[rustfmt::skip]
@@ -354,17 +232,6 @@ mod tests {
             0b01110000,
             0b01110000,
             0b00000000,
-        ]);
-        #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((1, 0), (2, 6), 3.0)), [
-            0x0ff00000,
-            0x0ff30000,
-            0x0ff50000,
-            0x0ff80000,
-            0x0ffa0000,
-            0x0ffd0000,
-            0x0fff0000,
-            0x00000000,
         ]);
     }
 }

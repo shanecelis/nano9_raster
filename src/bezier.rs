@@ -226,7 +226,7 @@ impl Iterator for QuadBezier {
 }
 
 /// C `floor(v + 0.5)` — half-up toward +∞.
-/// 
+///
 /// Look for the [core::f64::math::floor] to become stable so you can remove this.
 fn iround(v: f64) -> isize {
     libm::floor(v + 0.5) as isize

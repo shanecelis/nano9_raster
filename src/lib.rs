@@ -29,6 +29,8 @@ mod line_aa;
 mod quad_bezier_aa;
 #[cfg(feature = "wide-line")]
 mod wide_line;
+#[cfg(all(feature = "aa", feature = "wide-line"))]
+mod wide_line_aa;
 
 #[cfg(feature = "bezier")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bezier")))]
@@ -65,7 +67,10 @@ pub use line_aa::LineAa;
 pub use quad_bezier_aa::QuadBezierAa;
 #[cfg(feature = "wide-line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "wide-line")))]
-pub use wide_line::{WideLine, WideLineAa};
+pub use wide_line::WideLine;
+#[cfg(all(feature = "aa", feature = "wide-line"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "wide-line"))))]
+pub use wide_line_aa::WideLineAa;
 
 /// Convenient typedef for two machine-sized integers
 pub type Point = (isize, isize);

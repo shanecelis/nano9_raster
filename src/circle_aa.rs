@@ -523,11 +523,19 @@ mod tests {
                 Plot::Point(((1, -2), 63)),
                 Plot::Point(((-2, -1), 63)),
                 Plot::Point(((-1, -1), 255)),
-                Plot::Span(Span { x0: 0, x1: 0, y: -1 }),
+                Plot::Span(Span {
+                    x0: 0,
+                    x1: 0,
+                    y: -1
+                }),
                 Plot::Point(((1, -1), 255)),
                 Plot::Point(((2, -1), 63)),
                 Plot::Point(((-2, 0), 127)),
-                Plot::Span(Span { x0: -1, x1: 1, y: 0 }),
+                Plot::Span(Span {
+                    x0: -1,
+                    x1: 1,
+                    y: 0
+                }),
                 Plot::Point(((2, 0), 127)),
                 Plot::Point(((-2, 1), 63)),
                 Plot::Point(((-1, 1), 255)),
@@ -552,7 +560,10 @@ mod tests {
 
         let mut grid = [0u32; 8];
         let mut set = |x: isize, y: isize, c: u8| {
-            assert!((0..8).contains(&x) && (0..8).contains(&y), "({x},{y}) off grid");
+            assert!(
+                (0..8).contains(&x) && (0..8).contains(&y),
+                "({x},{y}) off grid"
+            );
             let shift = ((7 - x) * 4) as u32;
             let nyb = (c as u32) >> 4;
             assert_eq!(grid[y as usize] >> shift & 0xf, 0, "({x},{y}) drawn twice");
