@@ -34,7 +34,7 @@ bezier = ["line", "dep:libm"]
 aa = []
 ## Anti-aliased circle (`CircleAa`)
 circle-aa = ["dep:arraydeque"]
-## Anti-aliased ellipse (`EllipseAa`); implies `ellipse` and `circle-aa`
+## Anti-aliased ellipses (`EllipseAa`, `EllipseRectAa`); implies `ellipse` and `circle-aa`
 ellipse-aa = ["ellipse", "circle-aa"]
 ## Anti-aliased thick line (`WideLineAa`)
 wide-line = ["dep:libm"]

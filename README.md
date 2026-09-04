@@ -40,7 +40,7 @@ available as optional Cargo features.
 |------|------------------|------------------------------|--------------------|-------------------------------|
 | 0    | Line             | `Line`, `LineAa`             | Bresenham, Pitteway | `line`, `aa`                  |
 | 1    | Circle           | `Circle`, `CircleAa`, `Fill` | Bresenham, Fu       | `circle`, `circle-aa`, `fill` |
-| 2    | Ellipse          | `EllipseRect`, `EllipseAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
+| 2    | Ellipse          | `EllipseRect`, `EllipseAa`, `EllipseRectAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
 | 3    | Quadratic Bézier | `QuadBezier`, `QuadBezierAa` | Zingl              | `bezier`, `aa`                |
 | 4    | Wide line        | `WideLineAa`                 | Murphy             | `wide-line`                   |
 | —    | 3D Line          | `Line3d`                     | Kaufman            | `line3d`                      |
@@ -79,13 +79,13 @@ convenient.
 ## Fill
 
 The `fill` Cargo feature adds the `Fill` trait on `Circle`, `CircleAa`,
-`Ellipse`, `EllipseAa`, and `EllipseRect`. The trait is generic on its iterator
-item and defaults to `Span`: one solid inclusive `[x0, x1]` chord per distinct
-row. `CircleAa` and `EllipseAa` implement `Fill<Plot>` and mix those spans with
-`Point`s carrying anti-aliased rim coverage. The circle uses Vadillo's integer
-algorithm; the ellipse extends its squared implicit-function band with the
-ellipse's local gradient. Equal ellipse radii produce exactly the `CircleAa`
-result.
+`Ellipse`, `EllipseAa`, `EllipseRect`, and `EllipseRectAa`. The trait is generic
+on its iterator item and defaults to `Span`: one solid inclusive `[x0, x1]`
+chord per distinct row. The AA shapes implement `Fill<Plot>` and mix those spans
+with `Point`s carrying anti-aliased rim coverage. The circle uses Vadillo's
+integer algorithm; the ellipses extend its squared implicit-function band with
+the ellipse's local gradient. Even-sized `EllipseRectAa` bounds produce exactly
+the corresponding center-and-radii `EllipseAa` result.
 
 ## Inclusive
 
@@ -174,7 +174,7 @@ was rejected.
   <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/kaufman-shimony-1986-3d-scan-conversion.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `Line3d`
 - A. Zingl, ["A Rasterizing Algorithm for Drawing
   Curves"](https://zingl.github.io/Bresenham.pdf), Technikum Wien, 2012.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `QuadBezier` `QuadBezierAa`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `QuadBezier` `QuadBezierAa`
 - B. Fu and L. Niu, ["Integral Algorithm for Generating Anti-Aliasing Circle
   Based on Bresenham Algorithm"](https://doi.org/10.4028/www.scientific.net/AMR.490-495.1202),
   *Advanced Materials Research*, 490–495:1202–1206, 2012.

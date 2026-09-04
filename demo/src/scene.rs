@@ -1,7 +1,7 @@
 //! Shared autoplay scene used by the WASM demo and the GIF recorder.
 
 use nano9_raster::{
-    Circle, CircleAa, EllipseAa, EllipseRect, Fill, Inclusive, Line, LineAa, Plot, Point,
+    Circle, CircleAa, EllipseRect, EllipseRectAa, Fill, Inclusive, Line, LineAa, Plot, Point,
     QuadBezier, QuadBezierAa, WideLineAa,
 };
 
@@ -186,15 +186,11 @@ impl Scene {
                 .map(|p| (p, 255))
                 .collect(),
             Kind::Ellipse if self.anti_alias && self.fill => {
-                let (center, a, b) = Self::ellipse_center_radii(start, end);
-                Self::expand_plots(EllipseAa::new(center, a, b).fill())
+                Self::expand_plots(EllipseRectAa::new(start, end).fill())
             }
-            Kind::Ellipse if self.anti_alias => {
-                let (center, a, b) = Self::ellipse_center_radii(start, end);
-                EllipseAa::new(center, a, b)
-                    .filter(|(_, c)| *c > 0)
-                    .collect()
-            }
+            Kind::Ellipse if self.anti_alias => EllipseRectAa::new(start, end)
+                .filter(|(_, c)| *c > 0)
+                .collect(),
             Kind::Ellipse if self.fill => EllipseRect::new(start, end)
                 .fill()
                 .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
@@ -253,16 +249,6 @@ impl Scene {
 
     pub fn radius(start: Point, end: Point) -> isize {
         (end.0 - start.0).abs().max((end.1 - start.1).abs()).max(1)
-    }
-
-    fn ellipse_center_radii(start: Point, end: Point) -> (Point, isize, isize) {
-        let dx = end.0 - start.0;
-        let dy = end.1 - start.1;
-        (
-            (start.0 + dx / 2, start.1 + dy / 2),
-            dx.abs() / 2,
-            dy.abs() / 2,
-        )
     }
 
     pub fn clear(&mut self) {

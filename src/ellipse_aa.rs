@@ -99,6 +99,241 @@ impl Iterator for EllipseAa {
     }
 }
 
+/// Anti-aliased axis-aligned ellipse inscribed in a rectangle.
+///
+/// Unlike [`EllipseAa`], this supports odd rectangle widths and heights whose
+/// geometric center lies between pixel centers.
+pub struct EllipseRectAa {
+    #[cfg(feature = "fill")]
+    x0: isize,
+    #[cfg(feature = "fill")]
+    y0: isize,
+    #[cfg(feature = "fill")]
+    x1: isize,
+    #[cfg(feature = "fill")]
+    y1: isize,
+    inner: EllipseRectAaInner,
+}
+
+#[allow(clippy::large_enum_variant)]
+enum EllipseRectAaInner {
+    Ellipse(EllipseAa),
+    Rect(EllipseRectAaOutline),
+    Horizontal { x: isize, x1: isize, y: isize },
+    Vertical { x: isize, y: isize, y1: isize },
+}
+
+impl EllipseRectAa {
+    /// Closed ellipse filling the rectangle with opposite corners `p0` and
+    /// `p1`.
+    pub fn new(p0: Point, p1: Point) -> Self {
+        let (x0, x1) = (p0.0.min(p1.0), p0.0.max(p1.0));
+        let (y0, y1) = (p0.1.min(p1.1), p0.1.max(p1.1));
+        let a = x1 - x0;
+        let b = y1 - y0;
+        let inner = if a == 0 && b == 0 {
+            EllipseRectAaInner::Ellipse(EllipseAa::new((x0, y0), 0, 0))
+        } else if b == 0 {
+            EllipseRectAaInner::Horizontal { x: x0, x1, y: y0 }
+        } else if a == 0 {
+            EllipseRectAaInner::Vertical { x: x0, y: y0, y1 }
+        } else if a % 2 == 0 && b % 2 == 0 {
+            EllipseRectAaInner::Ellipse(EllipseAa::new((x0 + a / 2, y0 + b / 2), a / 2, b / 2))
+        } else {
+            EllipseRectAaInner::Rect(EllipseRectAaOutline::new((x0, y0), (x1, y1)))
+        };
+        Self {
+            #[cfg(feature = "fill")]
+            x0,
+            #[cfg(feature = "fill")]
+            y0,
+            #[cfg(feature = "fill")]
+            x1,
+            #[cfg(feature = "fill")]
+            y1,
+            inner,
+        }
+    }
+}
+
+impl Iterator for EllipseRectAa {
+    type Item = PointAa;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.inner {
+            EllipseRectAaInner::Ellipse(ellipse) => ellipse.next(),
+            EllipseRectAaInner::Rect(ellipse) => ellipse.next(),
+            EllipseRectAaInner::Horizontal { x, x1, y } => {
+                if *x > *x1 {
+                    return None;
+                }
+                let point = ((*x, *y), 255);
+                *x += 1;
+                Some(point)
+            }
+            EllipseRectAaInner::Vertical { x, y, y1 } => {
+                if *y > *y1 {
+                    return None;
+                }
+                let point = ((*x, *y), 255);
+                *y += 1;
+                Some(point)
+            }
+        }
+    }
+}
+
+struct EllipseRectAaOutline {
+    center2: Point,
+    a: isize,
+    b: isize,
+    a2: i128,
+    b2: i128,
+    target: i128,
+    y2: isize,
+    x_parity: isize,
+    boundary: isize,
+    x2: isize,
+    x2_end: isize,
+    pending: ArrayDeque<PointAa, 4>,
+}
+
+impl EllipseRectAaOutline {
+    fn new((x0, y0): Point, (x1, y1): Point) -> Self {
+        let center2 = (x0 + x1, y0 + y1);
+        let a = x1 - x0;
+        let b = y1 - y0;
+        let a2 = (a as i128) * (a as i128);
+        let b2 = (b as i128) * (b as i128);
+        let x_parity = center2.0.rem_euclid(2);
+        let mut ellipse = Self {
+            center2,
+            a,
+            b,
+            a2,
+            b2,
+            target: a2 * b2,
+            y2: center2.1.rem_euclid(2),
+            x_parity,
+            boundary: x_parity,
+            x2: x_parity,
+            x2_end: x_parity,
+            pending: ArrayDeque::new(),
+        };
+        ellipse.enter_row();
+        ellipse
+    }
+
+    fn implicit(&self, x2: isize) -> i128 {
+        let x = x2 as i128;
+        let y = self.y2 as i128;
+        self.b2 * x * x + self.a2 * y * y - self.target
+    }
+
+    fn alpha(&self, x2: isize) -> u8 {
+        let vertical = self.b2 * x2 as i128 <= self.a2 * self.y2 as i128;
+        let z = 255u128;
+        let (boundary, coordinate) = if vertical {
+            let remainder = (self.a2 - (x2 as i128) * (x2 as i128)).max(0) as u128;
+            let boundary = isqrt(remainder * self.b2 as u128 * z * z) / self.a as u128;
+            (boundary, self.y2 as u128 * z)
+        } else {
+            let y = self.y2 as i128;
+            let remainder = (self.b2 - y * y).max(0) as u128;
+            let boundary = isqrt(remainder * self.a2 as u128 * z * z) / self.b as u128;
+            (boundary, x2 as u128 * z)
+        };
+        255u128.saturating_sub((boundary.abs_diff(coordinate) / 2).min(255)) as u8
+    }
+
+    fn enter_row(&mut self) {
+        while self.boundary + 2 <= self.a && self.implicit(self.boundary + 2) <= 0 {
+            self.boundary += 2;
+        }
+        while self.boundary > self.x_parity && self.implicit(self.boundary) > 0 {
+            self.boundary -= 2;
+        }
+
+        let anchor = if self.alpha(self.boundary) > 0 {
+            Some(self.boundary)
+        } else if self.boundary + 2 <= self.a && self.alpha(self.boundary + 2) > 0 {
+            Some(self.boundary + 2)
+        } else {
+            None
+        };
+        let Some(anchor) = anchor else {
+            self.x2 = self.a + 2;
+            self.x2_end = self.a;
+            return;
+        };
+
+        let mut first = anchor;
+        while first > self.x_parity && self.alpha(first - 2) > 0 {
+            first -= 2;
+        }
+        let mut last = anchor;
+        while last + 2 <= self.a && self.alpha(last + 2) > 0 {
+            last += 2;
+        }
+        self.x2 = first;
+        self.x2_end = last;
+    }
+
+    fn prepare_reflections(&mut self) {
+        let alpha = self.alpha(self.x2);
+        let candidates = [
+            (
+                (self.center2.0 + self.x2) / 2,
+                (self.center2.1 + self.y2) / 2,
+            ),
+            (
+                (self.center2.0 - self.x2) / 2,
+                (self.center2.1 + self.y2) / 2,
+            ),
+            (
+                (self.center2.0 - self.x2) / 2,
+                (self.center2.1 - self.y2) / 2,
+            ),
+            (
+                (self.center2.0 + self.x2) / 2,
+                (self.center2.1 - self.y2) / 2,
+            ),
+        ];
+        'candidate: for point in candidates {
+            for prior in self.pending.iter() {
+                if prior.0 == point {
+                    continue 'candidate;
+                }
+            }
+            self.pending
+                .push_back((point, alpha))
+                .expect("EllipseRectAa outline pending overflow");
+        }
+        self.x2 += 2;
+    }
+}
+
+impl Iterator for EllipseRectAaOutline {
+    type Item = PointAa;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(point) = self.pending.pop_front() {
+                return Some(point);
+            }
+            if self.x2 <= self.x2_end {
+                self.prepare_reflections();
+                continue;
+            }
+            if self.y2 == self.b {
+                return None;
+            }
+            self.y2 += 2;
+            self.enter_row();
+        }
+    }
+}
+
 struct EllipseAaOutline {
     center: Point,
     a: isize,
@@ -250,6 +485,15 @@ impl Fill<Plot> for EllipseAa {
     /// quadrant and reflect edge points and spans across both axes.
     fn fill(self) -> impl Iterator<Item = Plot> {
         EllipseAaFill::new(self.center, self.a, self.b)
+    }
+}
+
+#[cfg(feature = "fill")]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "ellipse-aa", feature = "fill"))))]
+impl Fill<Plot> for EllipseRectAa {
+    /// Filled anti-aliased ellipse inscribed in this rectangle.
+    fn fill(self) -> impl Iterator<Item = Plot> {
+        EllipseRectAaFill::new((self.x0, self.y0), (self.x1, self.y1))
     }
 }
 
@@ -547,6 +791,229 @@ impl Iterator for EllipseAaFill {
     }
 }
 
+#[cfg(feature = "fill")]
+struct EllipseRectAaFill {
+    inner: EllipseRectAaFillInner,
+}
+
+#[cfg(feature = "fill")]
+enum EllipseRectAaFillInner {
+    Ellipse(EllipseAaFill),
+    Rect(EllipseRectAaFillCore),
+    Horizontal(Option<Span>),
+    Vertical { x: isize, y: isize, y1: isize },
+}
+
+#[cfg(feature = "fill")]
+impl EllipseRectAaFill {
+    fn new((x0, y0): Point, (x1, y1): Point) -> Self {
+        let a = x1 - x0;
+        let b = y1 - y0;
+        let inner = if a == 0 && b == 0 {
+            EllipseRectAaFillInner::Ellipse(EllipseAaFill::new((x0, y0), 0, 0))
+        } else if b == 0 {
+            EllipseRectAaFillInner::Horizontal(Some(Span { x0, x1, y: y0 }))
+        } else if a == 0 {
+            EllipseRectAaFillInner::Vertical { x: x0, y: y0, y1 }
+        } else if a % 2 == 0 && b % 2 == 0 {
+            EllipseRectAaFillInner::Ellipse(EllipseAaFill::new(
+                (x0 + a / 2, y0 + b / 2),
+                a / 2,
+                b / 2,
+            ))
+        } else {
+            EllipseRectAaFillInner::Rect(EllipseRectAaFillCore::new((x0, y0), (x1, y1)))
+        };
+        Self { inner }
+    }
+}
+
+#[cfg(feature = "fill")]
+impl Iterator for EllipseRectAaFill {
+    type Item = Plot;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.inner {
+            EllipseRectAaFillInner::Ellipse(ellipse) => ellipse.next(),
+            EllipseRectAaFillInner::Rect(ellipse) => ellipse.next(),
+            EllipseRectAaFillInner::Horizontal(span) => span.take().map(Plot::Span),
+            EllipseRectAaFillInner::Vertical { x, y, y1 } => {
+                if *y > *y1 {
+                    return None;
+                }
+                let plot = Plot::Span(Span {
+                    x0: *x,
+                    x1: *x,
+                    y: *y,
+                });
+                *y += 1;
+                Some(plot)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "fill")]
+struct EllipseRectAaFillCore {
+    center2: Point,
+    a: isize,
+    b: isize,
+    a2: i128,
+    b2: i128,
+    target: i128,
+    y2: isize,
+    x_parity: isize,
+    solid: isize,
+    edge: isize,
+    dx: isize,
+    phase: FillPhase,
+    pending: ArrayDeque<Plot, 4>,
+}
+
+#[cfg(feature = "fill")]
+impl EllipseRectAaFillCore {
+    fn new((x0, y0): Point, (x1, y1): Point) -> Self {
+        let center2 = (x0 + x1, y0 + y1);
+        let a = x1 - x0;
+        let b = y1 - y0;
+        let a2 = (a as i128) * (a as i128);
+        let b2 = (b as i128) * (b as i128);
+        let x_parity = center2.0.rem_euclid(2);
+        let mut fill = Self {
+            center2,
+            a,
+            b,
+            a2,
+            b2,
+            target: a2 * b2,
+            y2: center2.1.rem_euclid(2),
+            x_parity,
+            solid: x_parity - 2,
+            edge: x_parity,
+            dx: x_parity,
+            phase: FillPhase::Left,
+            pending: ArrayDeque::new(),
+        };
+        fill.enter_row();
+        fill
+    }
+
+    fn alpha(&self, x2: isize) -> u8 {
+        let x = x2 as i128;
+        let y = self.y2 as i128;
+        let f = self.b2 * x * x + self.a2 * y * y - self.target;
+        let gradient2 = self.b2 * self.b2 * x * x + self.a2 * self.a2 * y * y;
+        let gradient = isqrt(gradient2 as u128) as i128;
+        let band = 2 * gradient;
+        if gradient == 0 || f <= -band {
+            255
+        } else if f < band {
+            (255 * (band - f) / (2 * band)) as u8
+        } else {
+            0
+        }
+    }
+
+    fn bound(&self, from: isize, solid: bool) -> isize {
+        let accepts = |x| {
+            let alpha = self.alpha(x);
+            if solid {
+                alpha == 255
+            } else {
+                alpha > 0
+            }
+        };
+        let mut x = from.max(self.x_parity);
+        while x + 2 <= self.a && accepts(x + 2) {
+            x += 2;
+        }
+        while x >= self.x_parity && !accepts(x) {
+            x -= 2;
+        }
+        x
+    }
+
+    fn enter_row(&mut self) {
+        self.solid = self.bound(self.solid, true);
+        self.edge = self.bound(self.edge, false);
+        self.dx = self.edge;
+        self.phase = FillPhase::Left;
+    }
+
+    fn push_pending(&mut self, plot: Plot) {
+        if !self.pending.iter().any(|pending| *pending == plot) {
+            self.pending
+                .push_back(plot)
+                .expect("EllipseRectAa fill pending overflow");
+        }
+    }
+
+    fn prepare_edge_reflections(&mut self, x2: isize, alpha: u8) {
+        for point in [
+            ((self.center2.0 - x2) / 2, (self.center2.1 + self.y2) / 2),
+            ((self.center2.0 + x2) / 2, (self.center2.1 + self.y2) / 2),
+            ((self.center2.0 - x2) / 2, (self.center2.1 - self.y2) / 2),
+            ((self.center2.0 + x2) / 2, (self.center2.1 - self.y2) / 2),
+        ] {
+            self.push_pending(Plot::Point((point, alpha)));
+        }
+    }
+
+    fn prepare_span_reflections(&mut self) {
+        let x0 = (self.center2.0 - self.solid) / 2;
+        let x1 = (self.center2.0 + self.solid) / 2;
+        for y in [
+            (self.center2.1 + self.y2) / 2,
+            (self.center2.1 - self.y2) / 2,
+        ] {
+            self.push_pending(Plot::Span(Span { x0, x1, y }));
+        }
+    }
+}
+
+#[cfg(feature = "fill")]
+impl Iterator for EllipseRectAaFillCore {
+    type Item = Plot;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(plot) = self.pending.pop_front() {
+                return Some(plot);
+            }
+            match self.phase {
+                FillPhase::Left => {
+                    if self.dx > self.solid {
+                        let dx = self.dx;
+                        self.dx -= 2;
+                        let alpha = self.alpha(dx);
+                        if alpha > 0 {
+                            self.prepare_edge_reflections(dx, alpha);
+                        }
+                    } else {
+                        self.phase = FillPhase::Solid;
+                    }
+                }
+                FillPhase::Solid => {
+                    self.phase = FillPhase::Right;
+                    if self.solid >= self.x_parity {
+                        self.prepare_span_reflections();
+                    }
+                }
+                FillPhase::Right => {
+                    if self.y2 == self.b {
+                        self.phase = FillPhase::Done;
+                    } else {
+                        self.y2 += 2;
+                        self.enter_row();
+                    }
+                }
+                FillPhase::Done => return None,
+                FillPhase::Degenerate | FillPhase::Center => unreachable!(),
+            }
+        }
+    }
+}
+
 fn isqrt(value: u128) -> u128 {
     if value < 2 {
         return value;
@@ -571,7 +1038,7 @@ fn isqrt(value: u128) -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use super::EllipseAa;
+    use super::{EllipseAa, EllipseRectAa};
     use crate::CircleAa;
     #[cfg(feature = "fill")]
     use crate::{Fill, Plot};
@@ -595,6 +1062,38 @@ mod tests {
             let ellipse: Vec<_> = EllipseAa::new((3, -2), radius, radius).collect();
             let circle: Vec<_> = CircleAa::new((3, -2), radius).collect();
             assert_eq!(ellipse, circle, "radius={radius}");
+        }
+    }
+
+    #[test]
+    fn even_rectangles_match_center_and_radii_ellipse_aa_exactly() {
+        let center = (3, -2);
+        for a in 0..=16 {
+            for b in 0..=16 {
+                let ellipse: Vec<_> = EllipseAa::new(center, a, b).collect();
+                let rect: Vec<_> =
+                    EllipseRectAa::new((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
+                        .collect();
+                assert_eq!(rect, ellipse, "a={a} b={b}");
+            }
+        }
+    }
+
+    #[test]
+    fn odd_rectangles_are_symmetric() {
+        for &(p0, p1) in &[
+            ((0, 0), (7, 4)),
+            ((0, 0), (7, 5)),
+            ((-4, -2), (3, 3)),
+            ((5, 8), (-2, 3)),
+        ] {
+            let pixels = blend(EllipseRectAa::new(p0, p1));
+            let center2 = (p0.0 + p1.0, p0.1 + p1.1);
+            for (&(x, y), &alpha) in &pixels {
+                assert!(alpha > 0, "{p0:?} {p1:?} point=({x},{y})");
+                assert_eq!(pixels.get(&(center2.0 - x, y)), Some(&alpha));
+                assert_eq!(pixels.get(&(x, center2.1 - y)), Some(&alpha));
+            }
         }
     }
 
@@ -683,9 +1182,9 @@ mod tests {
     }
 
     #[cfg(feature = "fill")]
-    fn fill_pixels(a: isize, b: isize) -> BTreeMap<crate::Point, u8> {
+    fn expand_fill(plots: impl Iterator<Item = Plot>) -> BTreeMap<crate::Point, u8> {
         let mut pixels = BTreeMap::new();
-        for plot in EllipseAa::new((0, 0), a, b).fill() {
+        for plot in plots {
             match plot {
                 Plot::Span(span) => {
                     for x in span.x0..=span.x1 {
@@ -702,12 +1201,51 @@ mod tests {
     }
 
     #[cfg(feature = "fill")]
+    fn fill_pixels(a: isize, b: isize) -> BTreeMap<crate::Point, u8> {
+        expand_fill(EllipseAa::new((0, 0), a, b).fill())
+    }
+
+    #[cfg(feature = "fill")]
     #[test]
     fn equal_radii_fills_match_circle_aa() {
         for radius in 0..=32 {
             let ellipse: Vec<_> = EllipseAa::new((0, 0), radius, radius).fill().collect();
             let circle: Vec<_> = CircleAa::new((0, 0), radius).fill().collect();
             assert_eq!(ellipse, circle, "radius={radius}");
+        }
+    }
+
+    #[cfg(feature = "fill")]
+    #[test]
+    fn even_rectangle_fills_match_ellipse_aa_exactly() {
+        let center = (3, -2);
+        for a in 0..=16 {
+            for b in 0..=16 {
+                let ellipse: Vec<_> = EllipseAa::new(center, a, b).fill().collect();
+                let rect: Vec<_> =
+                    EllipseRectAa::new((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
+                        .fill()
+                        .collect();
+                assert_eq!(rect, ellipse, "a={a} b={b}");
+            }
+        }
+    }
+
+    #[cfg(feature = "fill")]
+    #[test]
+    fn odd_rectangle_fills_are_symmetric_and_unique() {
+        for &(p0, p1) in &[
+            ((0, 0), (7, 4)),
+            ((0, 0), (7, 5)),
+            ((-4, -2), (3, 3)),
+            ((5, 8), (-2, 3)),
+        ] {
+            let pixels = expand_fill(EllipseRectAa::new(p0, p1).fill());
+            let center2 = (p0.0 + p1.0, p0.1 + p1.1);
+            for (&(x, y), &alpha) in &pixels {
+                assert_eq!(pixels.get(&(center2.0 - x, y)), Some(&alpha));
+                assert_eq!(pixels.get(&(x, center2.1 - y)), Some(&alpha));
+            }
         }
     }
 

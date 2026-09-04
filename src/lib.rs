@@ -44,7 +44,7 @@ pub use circle_aa::CircleAa;
 pub use ellipse::{Ellipse, EllipseRect};
 #[cfg(feature = "ellipse-aa")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ellipse-aa")))]
-pub use ellipse_aa::EllipseAa;
+pub use ellipse_aa::{EllipseAa, EllipseRectAa};
 #[cfg(feature = "fill")]
 #[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
 pub use fill::{Fill, Plot, Span};
