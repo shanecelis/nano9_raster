@@ -65,7 +65,7 @@ pub use line_aa::LineAa;
 pub use quad_bezier_aa::QuadBezierAa;
 #[cfg(feature = "wide-line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "wide-line")))]
-pub use wide_line::WideLineAa;
+pub use wide_line::{WideLine, WideLineAa};
 
 /// Convenient typedef for two machine-sized integers
 pub type Point = (isize, isize);

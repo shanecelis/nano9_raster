@@ -42,7 +42,7 @@ available as optional Cargo features.
 | 1    | Circle           | `Circle`, `CircleAa`, `Fill` | Bresenham, Fu       | `circle`, `circle-aa`, `fill` |
 | 2    | Ellipse          | `Ellipse`, `EllipseAa`, `Fill` | Pitteway, Vadillo-inspired | `ellipse`, `ellipse-aa`, `fill` |
 | 3    | Quadratic Bézier | `QuadBezier`, `QuadBezierAa` | Zingl              | `bezier`, `aa`                |
-| 4    | Wide line        | `WideLineAa`                 | Murphy             | `wide-line`                   |
+| 4    | Wide line        | `WideLine`, `WideLineAa`     | Murphy             | `wide-line`                   |
 | —    | 3D Line          | `Line3d`                     | Kaufman            | `line3d`                      |
 | —    | Ellipse          | `Ellipse`                    | Pitteway           | `ellipse`                     |
 
@@ -169,7 +169,7 @@ was rejected.
 - A. S. Murphy, ["Line Thickening by Modification to Bresenham's
   Algorithm"](http://homepages.enterprise.net/murphy/thickline/index.html),
   *IBM Technical Disclosure Bulletin*, 20(12):5358–5366, 1978.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `WideLineAa`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `WideLine` `WideLineAa`
 - A. E. Kaufman and E. Shimony, ["3D scan-conversion algorithms for voxel-based
   graphics"](https://doi.org/10.1145/319120.319126), *Proceedings of the 1986
   Workshop on Interactive 3D Graphics*, 45–75, 1986.

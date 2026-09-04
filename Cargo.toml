@@ -36,7 +36,7 @@ aa = []
 circle-aa = ["dep:arraydeque"]
 ## Anti-aliased ellipses (`EllipseAa`); implies `ellipse` and `circle-aa`
 ellipse-aa = ["ellipse", "circle-aa"]
-## Anti-aliased thick line (`WideLineAa`)
+## Thick line (`WideLine`, `WideLineAa`)
 wide-line = ["dep:libm"]
 
 [package.metadata.docs.rs]

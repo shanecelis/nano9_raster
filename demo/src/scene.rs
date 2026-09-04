@@ -2,7 +2,7 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, WideLineAa,
+    QuadBezierAa, WideLine, WideLineAa,
 };
 
 pub const WIDTH: u32 = 64;
@@ -61,7 +61,7 @@ impl Kind {
     pub fn supports_aa(self) -> bool {
         matches!(
             self,
-            Kind::Line | Kind::Circle | Kind::Ellipse | Kind::QuadBezier
+            Kind::Line | Kind::Circle | Kind::Ellipse | Kind::QuadBezier | Kind::WideLine
         )
     }
 
@@ -77,7 +77,7 @@ pub enum Control {
     Fill,
 }
 
-const AUTO_STATES: [(Kind, bool, bool); 13] = [
+const AUTO_STATES: [(Kind, bool, bool); 14] = [
     (Kind::Line, false, false),
     (Kind::Line, true, false),
     (Kind::Circle, false, false),
@@ -91,6 +91,7 @@ const AUTO_STATES: [(Kind, bool, bool); 13] = [
     (Kind::QuadBezier, false, false),
     (Kind::QuadBezier, true, false),
     (Kind::WideLine, false, false),
+    (Kind::WideLine, true, false),
 ];
 
 pub struct Scene {
@@ -202,9 +203,10 @@ impl Scene {
             Kind::QuadBezier => QuadBezier::new(start, self.control, end)
                 .map(|p| (p, 255))
                 .collect(),
-            Kind::WideLine => WideLineAa::new(start, end, 3.0)
+            Kind::WideLine if self.anti_alias => WideLineAa::new(start, end, 3.0)
                 .filter(|(_, c)| *c > 0)
                 .collect(),
+            Kind::WideLine => WideLine::new(start, end, 3.0).map(|p| (p, 255)).collect(),
         }
     }
 
@@ -503,7 +505,7 @@ mod tests {
         assert!(Kind::Ellipse.supports_fill());
         assert!(Kind::QuadBezier.supports_aa());
         assert!(!Kind::Line.supports_fill());
-        assert!(!Kind::WideLine.supports_aa());
+        assert!(Kind::WideLine.supports_aa());
         assert!(!Kind::WideLine.supports_fill());
     }
 
@@ -536,8 +538,9 @@ mod tests {
 
         scene.activate_control(Control::Shape);
         assert_eq!(scene.kind, Kind::WideLine);
+        assert!(scene.anti_alias, "AA state was not retained");
         scene.activate_control(Control::AntiAlias);
-        assert!(scene.anti_alias, "disabled AA toggle changed state");
+        assert!(!scene.anti_alias, "AA toggle should work on WideLine");
     }
 
     #[test]
