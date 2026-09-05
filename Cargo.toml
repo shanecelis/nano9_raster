@@ -34,6 +34,8 @@ bezier = ["line", "dep:libm"]
 aa = ["dep:arraydeque"]
 ## Thick line (`ThickLine`, `ThickLineFill`; `*Aa` with `aa`)
 thick-line = ["dep:libm"]
+## Murphy perpendicular thickening (`murphy::ThickLineFill`)
+murphy = ["line"]
 ## Rounded rectangle outline (`RoundRect`, `RoundRectAa` with `aa`; `.fill()` with `fill`)
 round-rect = []
 

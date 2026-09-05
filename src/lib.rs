@@ -28,6 +28,9 @@ mod line;
 mod line3d;
 #[cfg(all(feature = "aa", feature = "line"))]
 mod line_aa;
+#[cfg(feature = "murphy")]
+#[cfg_attr(docsrs, doc(cfg(feature = "murphy")))]
+pub mod murphy;
 #[cfg(all(feature = "aa", feature = "bezier"))]
 mod quad_bezier_aa;
 #[cfg(feature = "round-rect")]
@@ -73,6 +76,9 @@ pub use line3d::Line3d;
 #[cfg(all(feature = "aa", feature = "line"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "line"))))]
 pub use line_aa::LineAa;
+#[cfg(all(feature = "murphy", not(feature = "thick-line")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "murphy")))]
+pub use murphy::ThickLineFill;
 #[cfg(all(feature = "aa", feature = "bezier"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "bezier"))))]
 pub use quad_bezier_aa::QuadBezierAa;

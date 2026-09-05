@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+murphy = ["nano9_raster/murphy"]
+
 [dependencies]
 nano9_raster = { path = "..", default-features = false, features = [
     "line",

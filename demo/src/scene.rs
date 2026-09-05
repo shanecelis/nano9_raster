@@ -2,8 +2,13 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, RoundRectAa, ThickLine, ThickLineAa, ThickLineFill, ThickLineFillAa,
+    QuadBezierAa, RoundRect, RoundRectAa, ThickLine, ThickLineAa, ThickLineFillAa,
 };
+
+#[cfg(feature = "murphy")]
+use nano9_raster::murphy::ThickLineFill;
+#[cfg(not(feature = "murphy"))]
+use nano9_raster::ThickLineFill;
 
 pub const WIDTH: u32 = 64;
 pub const HEIGHT: u32 = 48;
