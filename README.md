@@ -43,14 +43,14 @@ available as optional Cargo features.
 | 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
 | 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
+| 5    | Rounded rect     |           | X        |                     | `round-rect`, `fill`            |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
-| -    | Rounded rect     |           | X        |                     | `round-rect`, `fill`            |
 
 
 ## Demo
 
 The WASM demo shows a 64×48 canvas that autoplays every applicable combination
-of the five numbered shapes above. Three controls run along the top: click the
+of the six numbered shapes above. Three controls run along the top: click the
 number to advance the shape, the small circle to toggle anti-aliasing, or the
 outline/filled circle to toggle filling. An inapplicable control is grey and
 its setting is retained for the next applicable shape. `Line3d` and the
@@ -61,10 +61,11 @@ cd demo
 trunk serve; # Open the URL trunk prints.
 ```
 
-Left-drag draws the current shape between two points. On a Bézier, a second
-drag moves the orange control point; later drags near that handle move it
-again. Right-click stops autoplay and advances to the next shape. After a few
-seconds of inactivity, autoplay resumes.
+Left-drag draws the current shape between two points. On a Bézier or rounded
+rect, a second drag moves the orange control point (curve handle, or corner
+radius); later drags near that handle move it again. Right-click stops
+autoplay and advances to the next shape. After a few seconds of inactivity,
+autoplay resumes.
 
 ## Boundaries
 

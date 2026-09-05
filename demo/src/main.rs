@@ -165,7 +165,9 @@ impl Demo {
             self.scene.activate_control(control);
             return self.paint_shape();
         }
-        if self.scene.kind.is_bezier() && (self.awaiting_control || self.scene.near_control(p)) {
+        if self.scene.kind.has_control_point()
+            && (self.awaiting_control || self.scene.near_control(p))
+        {
             self.drag = Drag::Control;
             self.awaiting_control = false;
             self.scene.control = p;
@@ -222,7 +224,7 @@ impl Demo {
             Drag::Chord => {
                 self.scene.end = p;
                 self.scene.reset_control();
-                self.awaiting_control = self.scene.kind.is_bezier();
+                self.awaiting_control = self.scene.kind.has_control_point();
             }
             Drag::Control => {
                 self.scene.control = p;
@@ -241,7 +243,7 @@ impl Demo {
         }
         self.awaiting_control = false;
         self.scene.next_kind();
-        if self.scene.kind.is_bezier() {
+        if self.scene.kind.has_control_point() {
             self.scene.reset_control();
         }
         self.mode = Mode::Click { idle: 0 };

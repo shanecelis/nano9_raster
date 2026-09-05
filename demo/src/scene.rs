@@ -2,7 +2,7 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, WideLine, WideLineAa,
+    QuadBezierAa, RoundRect, WideLine, WideLineAa,
 };
 
 pub const WIDTH: u32 = 64;
@@ -31,6 +31,7 @@ pub enum Kind {
     Ellipse,
     QuadBezier,
     WideLine,
+    RoundRect,
 }
 
 impl Kind {
@@ -41,6 +42,7 @@ impl Kind {
             Kind::Ellipse => 2,
             Kind::QuadBezier => 3,
             Kind::WideLine => 4,
+            Kind::RoundRect => 5,
         }
     }
 
@@ -50,12 +52,17 @@ impl Kind {
             Kind::Circle => Kind::Ellipse,
             Kind::Ellipse => Kind::QuadBezier,
             Kind::QuadBezier => Kind::WideLine,
-            Kind::WideLine => Kind::Line,
+            Kind::WideLine => Kind::RoundRect,
+            Kind::RoundRect => Kind::Line,
         }
     }
 
     pub fn is_bezier(self) -> bool {
         self == Kind::QuadBezier
+    }
+
+    pub fn has_control_point(self) -> bool {
+        matches!(self, Kind::QuadBezier | Kind::RoundRect)
     }
 
     pub fn supports_aa(self) -> bool {
@@ -66,7 +73,7 @@ impl Kind {
     }
 
     pub fn supports_fill(self) -> bool {
-        matches!(self, Kind::Circle | Kind::Ellipse)
+        matches!(self, Kind::Circle | Kind::Ellipse | Kind::RoundRect)
     }
 }
 
@@ -77,7 +84,7 @@ pub enum Control {
     Fill,
 }
 
-const AUTO_STATES: [(Kind, bool, bool); 14] = [
+const AUTO_STATES: [(Kind, bool, bool); 16] = [
     (Kind::Line, false, false),
     (Kind::Line, true, false),
     (Kind::Circle, false, false),
@@ -92,6 +99,8 @@ const AUTO_STATES: [(Kind, bool, bool); 14] = [
     (Kind::QuadBezier, true, false),
     (Kind::WideLine, false, false),
     (Kind::WideLine, true, false),
+    (Kind::RoundRect, false, false),
+    (Kind::RoundRect, false, true),
 ];
 
 pub struct Scene {
@@ -154,6 +163,11 @@ impl Scene {
                 ((10, 36), (54, 14)),
                 ((12, 22), (56, 28)),
             ][i],
+            Kind::RoundRect => [
+                ((8, 12), (56, 38)),
+                ((12, 10), (50, 36)),
+                ((10, 16), (58, 32)),
+            ][i],
         }
     }
 
@@ -207,6 +221,13 @@ impl Scene {
                 .filter(|(_, c)| *c > 0)
                 .collect(),
             Kind::WideLine => WideLine::new(start, end, 3.0).map(|p| (p, 255)).collect(),
+            Kind::RoundRect if self.fill => RoundRect::new(start, end, self.round_rect_radius())
+                .fill()
+                .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
+                .collect(),
+            Kind::RoundRect => RoundRect::new(start, end, self.round_rect_radius())
+                .map(|p| (p, 255))
+                .collect(),
         }
     }
 
@@ -231,19 +252,60 @@ impl Scene {
         ((x0 + x1) / 2 - (y1 - y0) / 3, (y0 + y1) / 2 + (x1 - x0) / 3)
     }
 
+    fn round_rect_bounds(start: Point, end: Point) -> (isize, isize, isize, isize) {
+        (
+            start.0.min(end.0),
+            start.1.min(end.1),
+            start.0.max(end.0),
+            start.1.max(end.1),
+        )
+    }
+
+    fn default_round_rect_radius(start: Point, end: Point) -> isize {
+        let (x0, y0, x1, y1) = Self::round_rect_bounds(start, end);
+        ((x1 - x0).min(y1 - y0) / 4).max(0)
+    }
+
+    fn round_rect_control(start: Point, end: Point) -> Point {
+        let (x0, y0, _, _) = Self::round_rect_bounds(start, end);
+        let r = Self::default_round_rect_radius(start, end);
+        (x0 + r, y0 + r)
+    }
+
+    pub fn round_rect_radius(&self) -> isize {
+        let (x0, y0, _, _) = Self::round_rect_bounds(self.start, self.end);
+        (self.control.0 - x0)
+            .max(0)
+            .min((self.control.1 - y0).max(0))
+    }
+
     pub fn reset_control(&mut self) {
-        self.control = Self::control_point(self.start, self.end);
+        self.control = match self.kind {
+            Kind::RoundRect => Self::round_rect_control(self.start, self.end),
+            _ => Self::control_point(self.start, self.end),
+        };
+    }
+
+    pub fn handle_point(&self) -> Point {
+        if self.kind == Kind::RoundRect {
+            let (x0, y0, _, _) = Self::round_rect_bounds(self.start, self.end);
+            let r = self.round_rect_radius();
+            (x0 + r, y0 + r)
+        } else {
+            self.control
+        }
     }
 
     pub fn near_control(&self, p: Point) -> bool {
-        (p.0 - self.control.0).abs() <= 2 && (p.1 - self.control.1).abs() <= 2
+        let (x, y) = self.handle_point();
+        (p.0 - x).abs() <= 2 && (p.1 - y).abs() <= 2
     }
 
     pub fn plot_control(&mut self) {
-        if !self.kind.is_bezier() {
+        if !self.kind.has_control_point() {
             return;
         }
-        let (x, y) = self.control;
+        let (x, y) = self.handle_point();
         for p in [(x, y), (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)] {
             self.plot(p, 255, 140, 0);
         }
@@ -356,7 +418,7 @@ impl Scene {
         match control {
             Control::Shape => {
                 self.next_kind();
-                if self.kind.is_bezier() {
+                if self.kind.has_control_point() {
                     self.reset_control();
                 }
             }
@@ -507,6 +569,8 @@ mod tests {
         assert!(!Kind::Line.supports_fill());
         assert!(Kind::WideLine.supports_aa());
         assert!(!Kind::WideLine.supports_fill());
+        assert!(!Kind::RoundRect.supports_aa());
+        assert!(Kind::RoundRect.supports_fill());
     }
 
     #[test]
@@ -541,6 +605,15 @@ mod tests {
         assert!(scene.anti_alias, "AA state was not retained");
         scene.activate_control(Control::AntiAlias);
         assert!(!scene.anti_alias, "AA toggle should work on WideLine");
+
+        scene.activate_control(Control::Shape);
+        assert_eq!(scene.kind, Kind::RoundRect);
+        assert!(!scene.anti_alias, "AA state was not retained");
+        assert!(scene.fill, "fill state was not retained");
+        scene.activate_control(Control::AntiAlias);
+        assert!(!scene.anti_alias, "disabled AA toggle changed state");
+        scene.activate_control(Control::Fill);
+        assert!(!scene.fill, "fill toggle should work on RoundRect");
     }
 
     #[test]
@@ -561,5 +634,20 @@ mod tests {
         assert_eq!(pixel(&scene, 10, 1), [255, 255, 255, 255]);
         assert_eq!(pixel(&scene, 20, 3), [0x55, 0x55, 0x55, 255]);
         assert_eq!(pixel(&scene, 14, 3), BG);
+    }
+
+    #[test]
+    fn round_rect_control_sets_radius_from_top_left() {
+        let mut scene = Scene::new();
+        scene.kind = Kind::RoundRect;
+        scene.start = (10, 10);
+        scene.end = (40, 34);
+        scene.reset_control();
+        assert_eq!(scene.round_rect_radius(), 6);
+        assert_eq!(scene.handle_point(), (16, 16));
+
+        scene.control = (14, 19);
+        assert_eq!(scene.round_rect_radius(), 4);
+        assert_eq!(scene.handle_point(), (14, 14));
     }
 }

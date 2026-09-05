@@ -12,6 +12,7 @@ nano9_raster = { path = "..", default-features = false, features = [
     "bezier",
     "aa",
     "wide-line",
+    "round-rect",
     "fill",
     "inclusive",
 ] }
