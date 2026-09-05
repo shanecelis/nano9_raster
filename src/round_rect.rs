@@ -21,9 +21,20 @@ fn isqrt(n: u64) -> u64 {
     x
 }
 
-fn clamp_radius(w: isize, h: isize, r: isize) -> isize {
+pub(crate) fn clamp_radius(w: isize, h: isize, r: isize) -> isize {
     let max = (w.min(h) - 2).max(0) / 2;
     r.abs().min(max)
+}
+
+pub(crate) fn normalize_rect(
+    p0: Point,
+    p1: Point,
+    r: isize,
+) -> (isize, isize, isize, isize, isize) {
+    let (x0, x1) = (p0.0.min(p1.0), p0.0.max(p1.0));
+    let (y0, y1) = (p0.1.min(p1.1), p0.1.max(p1.1));
+    let r = clamp_radius(x1 - x0 + 1, y1 - y0 + 1, r);
+    (x0, y0, x1, y1, r)
 }
 
 /// Inclusive rounded rectangle outline
@@ -48,9 +59,7 @@ impl RoundRect {
     /// Negative radii are treated as their absolute value. The radius is
     /// clamped to `(min(width, height) − 2) / 2`.
     pub fn new(p0: Point, p1: Point, r: isize) -> Self {
-        let (x0, x1) = (p0.0.min(p1.0), p0.0.max(p1.0));
-        let (y0, y1) = (p0.1.min(p1.1), p0.1.max(p1.1));
-        let r = clamp_radius(x1 - x0 + 1, y1 - y0 + 1, r);
+        let (x0, y0, x1, y1, r) = normalize_rect(p0, p1, r);
         let mut rr = RoundRect {
             x0,
             y0,
@@ -69,7 +78,7 @@ impl RoundRect {
         rr
     }
 
-    fn row_span(&self, y: isize) -> Option<(isize, isize)> {
+    pub(crate) fn row_span(&self, y: isize) -> Option<(isize, isize)> {
         if y < self.y0 || y > self.y1 {
             return None;
         }

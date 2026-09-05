@@ -9,7 +9,10 @@ extern crate std;
 mod bezier;
 #[cfg(feature = "circle")]
 mod circle;
-#[cfg(all(feature = "aa", any(feature = "circle", feature = "ellipse")))]
+#[cfg(all(
+    feature = "aa",
+    any(feature = "circle", feature = "ellipse", feature = "round-rect")
+))]
 mod circle_aa;
 #[cfg(feature = "ellipse")]
 mod ellipse;
@@ -29,6 +32,8 @@ mod line_aa;
 mod quad_bezier_aa;
 #[cfg(feature = "round-rect")]
 mod round_rect;
+#[cfg(all(feature = "aa", feature = "round-rect"))]
+mod round_rect_aa;
 #[cfg(feature = "wide-line")]
 mod wide_line;
 #[cfg(all(feature = "aa", feature = "wide-line"))]
@@ -70,6 +75,9 @@ pub use quad_bezier_aa::QuadBezierAa;
 #[cfg(feature = "round-rect")]
 #[cfg_attr(docsrs, doc(cfg(feature = "round-rect")))]
 pub use round_rect::RoundRect;
+#[cfg(all(feature = "aa", feature = "round-rect"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "round-rect"))))]
+pub use round_rect_aa::RoundRectAa;
 #[cfg(feature = "wide-line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "wide-line")))]
 pub use wide_line::WideLine;

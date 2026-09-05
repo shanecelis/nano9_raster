@@ -2,7 +2,7 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, WideLine, WideLineAa,
+    QuadBezierAa, RoundRect, RoundRectAa, WideLine, WideLineAa,
 };
 
 pub const WIDTH: u32 = 64;
@@ -68,7 +68,12 @@ impl Kind {
     pub fn supports_aa(self) -> bool {
         matches!(
             self,
-            Kind::Line | Kind::Circle | Kind::Ellipse | Kind::QuadBezier | Kind::WideLine
+            Kind::Line
+                | Kind::Circle
+                | Kind::Ellipse
+                | Kind::QuadBezier
+                | Kind::WideLine
+                | Kind::RoundRect
         )
     }
 
@@ -84,7 +89,7 @@ pub enum Control {
     Fill,
 }
 
-const AUTO_STATES: [(Kind, bool, bool); 16] = [
+const AUTO_STATES: [(Kind, bool, bool); 18] = [
     (Kind::Line, false, false),
     (Kind::Line, true, false),
     (Kind::Circle, false, false),
@@ -100,7 +105,9 @@ const AUTO_STATES: [(Kind, bool, bool); 16] = [
     (Kind::WideLine, false, false),
     (Kind::WideLine, true, false),
     (Kind::RoundRect, false, false),
+    (Kind::RoundRect, true, false),
     (Kind::RoundRect, false, true),
+    (Kind::RoundRect, true, true),
 ];
 
 pub struct Scene {
@@ -221,6 +228,14 @@ impl Scene {
                 .filter(|(_, c)| *c > 0)
                 .collect(),
             Kind::WideLine => WideLine::new(start, end, 3.0).map(|p| (p, 255)).collect(),
+            Kind::RoundRect if self.anti_alias && self.fill => {
+                Self::expand_plots(RoundRectAa::new(start, end, self.round_rect_radius()).fill())
+            }
+            Kind::RoundRect if self.anti_alias => {
+                RoundRectAa::new(start, end, self.round_rect_radius())
+                    .filter(|(_, c)| *c > 0)
+                    .collect()
+            }
             Kind::RoundRect if self.fill => RoundRect::new(start, end, self.round_rect_radius())
                 .fill()
                 .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
@@ -569,7 +584,7 @@ mod tests {
         assert!(!Kind::Line.supports_fill());
         assert!(Kind::WideLine.supports_aa());
         assert!(!Kind::WideLine.supports_fill());
-        assert!(!Kind::RoundRect.supports_aa());
+        assert!(Kind::RoundRect.supports_aa());
         assert!(Kind::RoundRect.supports_fill());
     }
 
@@ -611,7 +626,7 @@ mod tests {
         assert!(!scene.anti_alias, "AA state was not retained");
         assert!(scene.fill, "fill state was not retained");
         scene.activate_control(Control::AntiAlias);
-        assert!(!scene.anti_alias, "disabled AA toggle changed state");
+        assert!(scene.anti_alias, "AA toggle should work on RoundRect");
         scene.activate_control(Control::Fill);
         assert!(!scene.fill, "fill toggle should work on RoundRect");
     }

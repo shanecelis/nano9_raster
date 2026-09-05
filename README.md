@@ -43,7 +43,7 @@ available as optional Cargo features.
 | 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
 | 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
-| 5    | Rounded rect     |           | X        |                     | `round-rect`, `fill`            |
+| 5    | Rounded rect     | X         | X        |                     | `round-rect`, `aa`, `fill`      |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
 
 
@@ -80,7 +80,7 @@ convenient.
 ## Fill
 
 The `fill` Cargo feature adds the `Fill` trait on `Circle`, `CircleAa`,
-`Ellipse`, and `EllipseAa`. Ellipses can be constructed from a center and radii
+`Ellipse`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can be constructed from a center and radii
 with `new`, or from opposite bounding-rectangle corners with `from_rect`. The
 trait is generic on its iterator item and defaults to `Span`: one solid
 inclusive `[x0, x1]` chord per distinct row. The AA shapes implement
