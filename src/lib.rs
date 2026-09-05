@@ -9,11 +9,11 @@ extern crate std;
 mod bezier;
 #[cfg(feature = "circle")]
 mod circle;
-#[cfg(feature = "circle-aa")]
+#[cfg(all(feature = "aa", any(feature = "circle", feature = "ellipse")))]
 mod circle_aa;
 #[cfg(feature = "ellipse")]
 mod ellipse;
-#[cfg(feature = "ellipse-aa")]
+#[cfg(all(feature = "aa", feature = "ellipse"))]
 mod ellipse_aa;
 #[cfg(feature = "fill")]
 mod fill;
@@ -38,14 +38,14 @@ pub use bezier::QuadBezier;
 #[cfg(feature = "circle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "circle")))]
 pub use circle::Circle;
-#[cfg(feature = "circle-aa")]
-#[cfg_attr(docsrs, doc(cfg(feature = "circle-aa")))]
+#[cfg(all(feature = "aa", feature = "circle"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "circle"))))]
 pub use circle_aa::CircleAa;
 #[cfg(feature = "ellipse")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ellipse")))]
 pub use ellipse::Ellipse;
-#[cfg(feature = "ellipse-aa")]
-#[cfg_attr(docsrs, doc(cfg(feature = "ellipse-aa")))]
+#[cfg(all(feature = "aa", feature = "ellipse"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "ellipse"))))]
 pub use ellipse_aa::EllipseAa;
 #[cfg(feature = "fill")]
 #[cfg_attr(docsrs, doc(cfg(feature = "fill")))]

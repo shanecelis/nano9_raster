@@ -39,8 +39,8 @@ available as optional Cargo features.
 | Demo | Shape            | AA option | fillable | Author              | Feature                         |
 |------|------------------|-----------|----------|---------------------|---------------------------------|
 | 0    | Line             | X         |          | Bresenham, Pitteway | `line`, `aa`                    |
-| 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `circle-aa`, `fill`   |
-| 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `ellipse-aa`, `fill` |
+| 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `aa`, `fill`          |
+| 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
 | 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |

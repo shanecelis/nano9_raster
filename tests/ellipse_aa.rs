@@ -1,4 +1,4 @@
-#![cfg(all(feature = "ellipse-aa", feature = "fill"))]
+#![cfg(all(feature = "aa", feature = "ellipse", feature = "fill"))]
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -9,7 +9,8 @@ use arraydeque::ArrayDeque;
 
 #[cfg(feature = "fill")]
 use crate::fill::{Fill, Plot, Span};
-use crate::{CircleAa, Point, PointAa};
+use crate::circle_aa::CircleAa;
+use crate::{Point, PointAa};
 
 /// Anti-aliased axis-aligned ellipse.
 ///
@@ -418,7 +419,7 @@ impl Iterator for EllipseAaOutline {
 }
 
 #[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "ellipse-aa", feature = "fill"))))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "ellipse", feature = "fill"))))]
 impl Fill<Plot> for EllipseAa {
     /// Filled anti-aliased ellipse: solid interior [`Span`]s plus edge points.
     ///
@@ -1010,7 +1011,7 @@ fn isqrt(value: u128) -> u128 {
 #[cfg(test)]
 mod tests {
     use super::EllipseAa;
-    use crate::CircleAa;
+    use crate::circle_aa::CircleAa;
     #[cfg(feature = "fill")]
     use crate::{Fill, Plot};
     use std::collections::BTreeMap;

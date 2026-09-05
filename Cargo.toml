@@ -30,12 +30,8 @@ fill = []
 inclusive = []
 ## Quadratic Bézier (`QuadBezier`); implies `line`
 bezier = ["line", "dep:libm"]
-## Anti-aliasing variants of enabled shapes (`LineAa` with `line`, `QuadBezierAa` with `bezier`, `WideLineAa` with `wide-line`)
-aa = []
-## Anti-aliased circle (`CircleAa`)
-circle-aa = ["dep:arraydeque"]
-## Anti-aliased ellipses (`EllipseAa`); implies `ellipse` and `circle-aa`
-ellipse-aa = ["ellipse", "circle-aa"]
+## Anti-aliasing variants of enabled shapes (`LineAa` with `line`, `CircleAa` with `circle`, `EllipseAa` with `ellipse`, `QuadBezierAa` with `bezier`, `WideLineAa` with `wide-line`)
+aa = ["dep:arraydeque"]
 ## Thick line (`WideLine`; `WideLineAa` with `aa`)
 wide-line = ["dep:libm"]
 
@@ -63,7 +59,7 @@ required-features = ["inclusive", "line3d"]
 [[bench]]
 name = "shape_compare"
 harness = false
-required-features = ["circle", "ellipse-aa", "fill"]
+required-features = ["circle", "ellipse", "aa", "fill"]
 
 [profile.wasm]
 inherits = "release"
