@@ -7,6 +7,9 @@ extern crate std;
 
 #[cfg(feature = "bezier")]
 mod bezier;
+#[cfg(feature = "celis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "celis")))]
+pub mod celis;
 #[cfg(feature = "circle")]
 mod circle;
 #[cfg(all(

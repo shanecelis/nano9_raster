@@ -151,6 +151,152 @@ impl ThickLineFill {
             self.start_spoke((self.x, self.y));
         }
     }
+
+    pub(crate) fn axis_span(
+        start: Point,
+        end: Point,
+        wd: f32,
+        along_x: bool,
+        major: isize,
+    ) -> Option<(isize, isize)> {
+        let mut lo = None;
+        let mut hi = None;
+        for (x, y) in ThickLineFill::new(start, end, wd) {
+            let (maj, minor) = if along_x { (x, y) } else { (y, x) };
+            if maj == major {
+                lo = Some(lo.map_or(minor, |a: isize| a.min(minor)));
+                hi = Some(hi.map_or(minor, |a: isize| a.max(minor)));
+            }
+        }
+        match (lo, hi) {
+            (Some(a), Some(b)) => Some((a, b)),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn fill_bounds(start: Point, end: Point, wd: f32) -> Option<(Point, Point)> {
+        let mut iter = ThickLineFill::new(start, end, wd);
+        let (x, y) = iter.next()?;
+        let (mut minx, mut maxx, mut miny, mut maxy) = (x, x, y, y);
+        for (x, y) in iter {
+            minx = minx.min(x);
+            maxx = maxx.max(x);
+            miny = miny.min(y);
+            maxy = maxy.max(y);
+        }
+        Some(((minx, miny), (maxx, maxy)))
+    }
+}
+
+/// Inclusive outline: the 4-connected boundary of [`ThickLineFill`].
+pub struct ThickLine {
+    start: Point,
+    end: Point,
+    wd: f32,
+    x: isize,
+    x_max: isize,
+    y0: isize,
+    y: isize,
+    y_hi: isize,
+    prev: Option<(isize, isize)>,
+    next: Option<(isize, isize)>,
+    done: bool,
+}
+
+impl ThickLine {
+    /// Inclusive thick-line outline (`[start, end]`) with width `wd`.
+    pub fn new(start: Point, end: Point, wd: f32) -> Self {
+        let Some(((x_min, _), (x_max, _))) = ThickLineFill::fill_bounds(start, end, wd) else {
+            return ThickLine {
+                start,
+                end,
+                wd,
+                x: 0,
+                x_max: -1,
+                y0: 0,
+                y: 0,
+                y_hi: -1,
+                prev: None,
+                next: None,
+                done: true,
+            };
+        };
+        let curr = ThickLineFill::axis_span(start, end, wd, true, x_min);
+        let mut line = ThickLine {
+            start,
+            end,
+            wd,
+            x: x_min,
+            x_max,
+            y0: 0,
+            y: 0,
+            y_hi: -1,
+            prev: None,
+            next: ThickLineFill::axis_span(start, end, wd, true, x_min + 1),
+            done: false,
+        };
+        line.enter(curr);
+        line
+    }
+
+    fn enter(&mut self, curr: Option<(isize, isize)>) {
+        match curr {
+            Some((y0, y1)) => {
+                self.y0 = y0;
+                self.y = y0;
+                self.y_hi = y1;
+            }
+            None => {
+                self.done = true;
+            }
+        }
+    }
+
+    fn is_outline(&self, y: isize) -> bool {
+        if y == self.y0 || y == self.y_hi {
+            return true;
+        }
+        let left_open = match self.prev {
+            None => true,
+            Some((a, b)) => y < a || y > b,
+        };
+        let right_open = match self.next {
+            None => true,
+            Some((a, b)) => y < a || y > b,
+        };
+        left_open || right_open
+    }
+
+    fn advance_column(&mut self) {
+        if self.x == self.x_max {
+            self.done = true;
+            return;
+        }
+        self.prev = ThickLineFill::axis_span(self.start, self.end, self.wd, true, self.x);
+        self.x += 1;
+        self.next = ThickLineFill::axis_span(self.start, self.end, self.wd, true, self.x + 1);
+        let curr = ThickLineFill::axis_span(self.start, self.end, self.wd, true, self.x);
+        self.enter(curr);
+    }
+}
+
+impl Iterator for ThickLine {
+    type Item = Point;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while !self.done {
+            if self.y <= self.y_hi {
+                let y = self.y;
+                self.y += 1;
+                if self.is_outline(y) {
+                    return Some((self.x, y));
+                }
+            } else {
+                self.advance_column();
+            }
+        }
+        None
+    }
 }
 
 impl Iterator for ThickLineFill {
@@ -338,6 +484,31 @@ mod tests {
             0b11111000,
             0b11110000,
         ]);
+    }
+
+    #[test]
+    fn outline_is_fill_boundary() {
+        use super::ThickLine;
+        for (start, end, wd) in [
+            ((0, 3), (7, 3), 1.0),
+            ((0, 3), (7, 3), 3.0),
+            ((3, 0), (3, 7), 3.0),
+            ((0, 0), (5, 2), 3.0),
+            ((0, 0), (7, 7), 3.0),
+        ] {
+            let fill: BTreeSet<_> = ThickLineFill::new(start, end, wd).collect();
+            let expected: BTreeSet<_> = fill
+                .iter()
+                .copied()
+                .filter(|&(x, y)| {
+                    [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                        .iter()
+                        .any(|&(dx, dy)| !fill.contains(&(x + dx, y + dy)))
+                })
+                .collect();
+            let outline: BTreeSet<_> = ThickLine::new(start, end, wd).collect();
+            assert_eq!(outline, expected, "{start:?}->{end:?} wd={wd}");
+        }
     }
 
     #[test]

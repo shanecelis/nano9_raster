@@ -42,7 +42,7 @@ available as optional Cargo features.
 | 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `aa`, `fill`          |
 | 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
-| 4    | Thick line       | X         | X        | Murphy, Zingl       | `thick-line`, `aa`              |
+| 4    | Thick line       | X         | X        | Murphy, Zingl, Celis | `thick-line`, `aa`, `murphy`, `celis` |
 | 5    | Rounded rect     | X         | X        |                     | `round-rect`, `aa`, `fill`      |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
 
