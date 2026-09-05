@@ -34,10 +34,14 @@ mod quad_bezier_aa;
 mod round_rect;
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 mod round_rect_aa;
-#[cfg(feature = "wide-line")]
-mod wide_line;
-#[cfg(all(feature = "aa", feature = "wide-line"))]
-mod wide_line_aa;
+#[cfg(feature = "thick-line")]
+mod thick_line;
+#[cfg(all(feature = "aa", feature = "thick-line"))]
+mod thick_line_aa;
+#[cfg(feature = "thick-line")]
+mod thick_line_fill;
+#[cfg(all(feature = "aa", feature = "thick-line"))]
+mod thick_line_fill_aa;
 
 #[cfg(feature = "bezier")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bezier")))]
@@ -78,12 +82,18 @@ pub use round_rect::RoundRect;
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "round-rect"))))]
 pub use round_rect_aa::RoundRectAa;
-#[cfg(feature = "wide-line")]
-#[cfg_attr(docsrs, doc(cfg(feature = "wide-line")))]
-pub use wide_line::WideLine;
-#[cfg(all(feature = "aa", feature = "wide-line"))]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "wide-line"))))]
-pub use wide_line_aa::WideLineAa;
+#[cfg(feature = "thick-line")]
+#[cfg_attr(docsrs, doc(cfg(feature = "thick-line")))]
+pub use thick_line::ThickLine;
+#[cfg(all(feature = "aa", feature = "thick-line"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "thick-line"))))]
+pub use thick_line_aa::ThickLineAa;
+#[cfg(feature = "thick-line")]
+#[cfg_attr(docsrs, doc(cfg(feature = "thick-line")))]
+pub use thick_line_fill::ThickLineFill;
+#[cfg(all(feature = "aa", feature = "thick-line"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "thick-line"))))]
+pub use thick_line_fill_aa::ThickLineFillAa;
 
 /// Convenient typedef for two machine-sized integers
 pub type Point = (isize, isize);

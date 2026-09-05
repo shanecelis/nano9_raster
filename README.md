@@ -42,7 +42,7 @@ available as optional Cargo features.
 | 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `aa`, `fill`          |
 | 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
-| 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
+| 4    | Thick line       | X         | X        | Murphy, Zingl       | `thick-line`, `aa`              |
 | 5    | Rounded rect     | X         | X        |                     | `round-rect`, `aa`, `fill`      |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
 
@@ -61,9 +61,10 @@ cd demo
 trunk serve; # Open the URL trunk prints.
 ```
 
-Left-drag draws the current shape between two points. On a Bézier or rounded
-rect, a second drag moves the orange control point (curve handle, or corner
-radius); later drags near that handle move it again. Right-click stops
+Left-drag draws the current shape between two points. On a Bézier, thick line,
+or rounded rect, a second drag moves the orange control point (curve handle,
+stroke width, or corner radius); later drags near that handle move it again.
+Right-click stops
 autoplay and advances to the next shape. After a few seconds of inactivity,
 autoplay resumes.
 
@@ -170,14 +171,14 @@ was rejected.
 - A. S. Murphy, ["Line Thickening by Modification to Bresenham's
   Algorithm"](http://homepages.enterprise.net/murphy/thickline/index.html),
   *IBM Technical Disclosure Bulletin*, 20(12):5358–5366, 1978.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `WideLine` `WideLineAa`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `ThickLine` `ThickLineAa`
 - A. E. Kaufman and E. Shimony, ["3D scan-conversion algorithms for voxel-based
   graphics"](https://doi.org/10.1145/319120.319126), *Proceedings of the 1986
   Workshop on Interactive 3D Graphics*, 45–75, 1986.
   <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/kaufman-shimony-1986-3d-scan-conversion.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `Line3d`
 - A. Zingl, ["A Rasterizing Algorithm for Drawing
   Curves"](https://zingl.github.io/Bresenham.pdf), Technikum Wien, 2012.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `QuadBezier` `QuadBezierAa`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `QuadBezier` `QuadBezierAa` `ThickLineFill` `ThickLineFillAa`
 - B. Fu and L. Niu, ["Integral Algorithm for Generating Anti-Aliasing Circle
   Based on Bresenham Algorithm"](https://doi.org/10.4028/www.scientific.net/AMR.490-495.1202),
   *Advanced Materials Research*, 490–495:1202–1206, 2012.

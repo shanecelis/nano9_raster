@@ -6,7 +6,7 @@
 //! `rrect(x0, y0, x1 - x0 + 1, y1 - y0 + 1, r)` / `rrectfill` via [`Fill::fill`].
 //!
 //! `plot_binary` packs each row as `grid[y] |= 0x80 >> x` (MSB = x = 0), same as
-//! the `wide_line` unit tests.
+//! the `thick_line` unit tests.
 //!
 //! Captured from real Pico-8 (`nano9/tests/golden/rrect8.p8`).
 

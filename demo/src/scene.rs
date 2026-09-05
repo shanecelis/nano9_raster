@@ -2,7 +2,7 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, RoundRectAa, WideLine, WideLineAa,
+    QuadBezierAa, RoundRect, RoundRectAa, ThickLine, ThickLineAa, ThickLineFill, ThickLineFillAa,
 };
 
 pub const WIDTH: u32 = 64;
@@ -30,7 +30,7 @@ pub enum Kind {
     Circle,
     Ellipse,
     QuadBezier,
-    WideLine,
+    ThickLine,
     RoundRect,
 }
 
@@ -41,7 +41,7 @@ impl Kind {
             Kind::Circle => 1,
             Kind::Ellipse => 2,
             Kind::QuadBezier => 3,
-            Kind::WideLine => 4,
+            Kind::ThickLine => 4,
             Kind::RoundRect => 5,
         }
     }
@@ -51,8 +51,8 @@ impl Kind {
             Kind::Line => Kind::Circle,
             Kind::Circle => Kind::Ellipse,
             Kind::Ellipse => Kind::QuadBezier,
-            Kind::QuadBezier => Kind::WideLine,
-            Kind::WideLine => Kind::RoundRect,
+            Kind::QuadBezier => Kind::ThickLine,
+            Kind::ThickLine => Kind::RoundRect,
             Kind::RoundRect => Kind::Line,
         }
     }
@@ -62,7 +62,7 @@ impl Kind {
     }
 
     pub fn has_control_point(self) -> bool {
-        matches!(self, Kind::QuadBezier | Kind::RoundRect)
+        matches!(self, Kind::QuadBezier | Kind::ThickLine | Kind::RoundRect)
     }
 
     pub fn supports_aa(self) -> bool {
@@ -72,13 +72,16 @@ impl Kind {
                 | Kind::Circle
                 | Kind::Ellipse
                 | Kind::QuadBezier
-                | Kind::WideLine
+                | Kind::ThickLine
                 | Kind::RoundRect
         )
     }
 
     pub fn supports_fill(self) -> bool {
-        matches!(self, Kind::Circle | Kind::Ellipse | Kind::RoundRect)
+        matches!(
+            self,
+            Kind::Circle | Kind::Ellipse | Kind::ThickLine | Kind::RoundRect
+        )
     }
 }
 
@@ -89,7 +92,7 @@ pub enum Control {
     Fill,
 }
 
-const AUTO_STATES: [(Kind, bool, bool); 18] = [
+const AUTO_STATES: [(Kind, bool, bool); 20] = [
     (Kind::Line, false, false),
     (Kind::Line, true, false),
     (Kind::Circle, false, false),
@@ -102,8 +105,10 @@ const AUTO_STATES: [(Kind, bool, bool); 18] = [
     (Kind::Ellipse, true, true),
     (Kind::QuadBezier, false, false),
     (Kind::QuadBezier, true, false),
-    (Kind::WideLine, false, false),
-    (Kind::WideLine, true, false),
+    (Kind::ThickLine, false, false),
+    (Kind::ThickLine, true, false),
+    (Kind::ThickLine, false, true),
+    (Kind::ThickLine, true, true),
     (Kind::RoundRect, false, false),
     (Kind::RoundRect, true, false),
     (Kind::RoundRect, false, true),
@@ -165,7 +170,7 @@ impl Scene {
                 ((10, 12), (54, 40)),
                 ((8, 40), (58, 14)),
             ][i],
-            Kind::WideLine => [
+            Kind::ThickLine => [
                 ((10, 16), (54, 36)),
                 ((10, 36), (54, 14)),
                 ((12, 22), (56, 28)),
@@ -224,10 +229,22 @@ impl Scene {
             Kind::QuadBezier => QuadBezier::new(start, self.control, end)
                 .map(|p| (p, 255))
                 .collect(),
-            Kind::WideLine if self.anti_alias => WideLineAa::new(start, end, 3.0)
-                .filter(|(_, c)| *c > 0)
+            Kind::ThickLine if self.anti_alias && self.fill => {
+                ThickLineFillAa::new(start, end, self.thick_line_width())
+                    .filter(|(_, c)| *c > 0)
+                    .collect()
+            }
+            Kind::ThickLine if self.anti_alias => {
+                ThickLineAa::new(start, end, self.thick_line_width())
+                    .filter(|(_, c)| *c > 0)
+                    .collect()
+            }
+            Kind::ThickLine if self.fill => ThickLineFill::new(start, end, self.thick_line_width())
+                .map(|p| (p, 255))
                 .collect(),
-            Kind::WideLine => WideLine::new(start, end, 3.0).map(|p| (p, 255)).collect(),
+            Kind::ThickLine => ThickLine::new(start, end, self.thick_line_width())
+                .map(|p| (p, 255))
+                .collect(),
             Kind::RoundRect if self.anti_alias && self.fill => {
                 Self::expand_plots(RoundRectAa::new(start, end, self.round_rect_radius()).fill())
             }
@@ -294,20 +311,81 @@ impl Scene {
             .min((self.control.1 - y0).max(0))
     }
 
+    fn chord_len(start: Point, end: Point) -> f64 {
+        let dx = (end.0 - start.0) as f64;
+        let dy = (end.1 - start.1) as f64;
+        (dx * dx + dy * dy).sqrt()
+    }
+
+    fn thick_line_control(start: Point, end: Point) -> Point {
+        let mid = ((start.0 + end.0) / 2, (start.1 + end.1) / 2);
+        let dx = (end.0 - start.0) as f64;
+        let dy = (end.1 - start.1) as f64;
+        let len = Self::chord_len(start, end);
+        if len < 1.0 {
+            return (mid.0, mid.1 - 3);
+        }
+        let ox = (-dy * 3.0 / len).round() as isize;
+        let oy = (dx * 3.0 / len).round() as isize;
+        if ox == 0 && oy == 0 {
+            (mid.0, mid.1 - 3)
+        } else {
+            (mid.0 + ox, mid.1 + oy)
+        }
+    }
+
+    pub fn thick_line_width(&self) -> f32 {
+        let len = Self::chord_len(self.start, self.end);
+        let dist = if len < 1.0 {
+            let dx = (self.control.0 - self.start.0) as f64;
+            let dy = (self.control.1 - self.start.1) as f64;
+            (dx * dx + dy * dy).sqrt()
+        } else {
+            let dx = (self.end.0 - self.start.0) as f64;
+            let dy = (self.end.1 - self.start.1) as f64;
+            ((self.control.0 - self.start.0) as f64 * dy
+                - (self.control.1 - self.start.1) as f64 * dx)
+                .abs()
+                / len
+        };
+        dist.max(1.0) as f32
+    }
+
     pub fn reset_control(&mut self) {
         self.control = match self.kind {
             Kind::RoundRect => Self::round_rect_control(self.start, self.end),
+            Kind::ThickLine => Self::thick_line_control(self.start, self.end),
             _ => Self::control_point(self.start, self.end),
         };
     }
 
     pub fn handle_point(&self) -> Point {
-        if self.kind == Kind::RoundRect {
-            let (x0, y0, _, _) = Self::round_rect_bounds(self.start, self.end);
-            let r = self.round_rect_radius();
-            (x0 + r, y0 + r)
-        } else {
-            self.control
+        match self.kind {
+            Kind::RoundRect => {
+                let (x0, y0, _, _) = Self::round_rect_bounds(self.start, self.end);
+                let r = self.round_rect_radius();
+                (x0 + r, y0 + r)
+            }
+            Kind::ThickLine => {
+                let mid = (
+                    (self.start.0 + self.end.0) / 2,
+                    (self.start.1 + self.end.1) / 2,
+                );
+                let dx = (self.end.0 - self.start.0) as f64;
+                let dy = (self.end.1 - self.start.1) as f64;
+                let len = Self::chord_len(self.start, self.end);
+                let w = f64::from(self.thick_line_width());
+                if len < 1.0 {
+                    return (mid.0, mid.1 - w.round() as isize);
+                }
+                let cross = (self.control.0 - self.start.0) as f64 * dy
+                    - (self.control.1 - self.start.1) as f64 * dx;
+                let sign = if cross > 0.0 { -1.0 } else { 1.0 };
+                let ox = (-dy * sign * w / len).round() as isize;
+                let oy = (dx * sign * w / len).round() as isize;
+                (mid.0 + ox, mid.1 + oy)
+            }
+            _ => self.control,
         }
     }
 
@@ -582,8 +660,8 @@ mod tests {
         assert!(Kind::Ellipse.supports_fill());
         assert!(Kind::QuadBezier.supports_aa());
         assert!(!Kind::Line.supports_fill());
-        assert!(Kind::WideLine.supports_aa());
-        assert!(!Kind::WideLine.supports_fill());
+        assert!(Kind::ThickLine.supports_aa());
+        assert!(Kind::ThickLine.supports_fill());
         assert!(Kind::RoundRect.supports_aa());
         assert!(Kind::RoundRect.supports_fill());
     }
@@ -616,19 +694,22 @@ mod tests {
         assert!(scene.fill, "disabled fill toggle changed state");
 
         scene.activate_control(Control::Shape);
-        assert_eq!(scene.kind, Kind::WideLine);
+        assert_eq!(scene.kind, Kind::ThickLine);
         assert!(scene.anti_alias, "AA state was not retained");
+        assert!(scene.fill, "fill state was not retained");
         scene.activate_control(Control::AntiAlias);
-        assert!(!scene.anti_alias, "AA toggle should work on WideLine");
+        assert!(!scene.anti_alias, "AA toggle should work on ThickLine");
+        scene.activate_control(Control::Fill);
+        assert!(!scene.fill, "fill toggle should work on ThickLine");
 
         scene.activate_control(Control::Shape);
         assert_eq!(scene.kind, Kind::RoundRect);
         assert!(!scene.anti_alias, "AA state was not retained");
-        assert!(scene.fill, "fill state was not retained");
+        assert!(!scene.fill, "fill state was not retained");
         scene.activate_control(Control::AntiAlias);
         assert!(scene.anti_alias, "AA toggle should work on RoundRect");
         scene.activate_control(Control::Fill);
-        assert!(!scene.fill, "fill toggle should work on RoundRect");
+        assert!(scene.fill, "fill toggle should work on RoundRect");
     }
 
     #[test]
@@ -664,5 +745,24 @@ mod tests {
         scene.control = (14, 19);
         assert_eq!(scene.round_rect_radius(), 4);
         assert_eq!(scene.handle_point(), (14, 14));
+    }
+
+    #[test]
+    fn thick_line_control_sets_width_from_offset() {
+        let mut scene = Scene::new();
+        scene.kind = Kind::ThickLine;
+        scene.start = (10, 20);
+        scene.end = (40, 20);
+        scene.reset_control();
+        assert_eq!(scene.thick_line_width(), 3.0);
+        assert_eq!(scene.handle_point(), (25, 23));
+
+        scene.control = (18, 26);
+        assert_eq!(scene.thick_line_width(), 6.0);
+        assert_eq!(scene.handle_point(), (25, 26));
+
+        scene.control = (25, 14);
+        assert_eq!(scene.thick_line_width(), 6.0);
+        assert_eq!(scene.handle_point(), (25, 14));
     }
 }

@@ -1,28 +1,28 @@
-//! Anti-aliased thick line from Alois Zingl's `plotLineWidth`.
+//! Anti-aliased filled thick line from Alois Zingl's `plotLineWidth`.
 //!
 //! Coverage is inverted from Zingl's `setPixelAA`: `255` is fully on the curve,
 //! `0` is fully off.
 
-use crate::wide_line::WideLine;
+use crate::thick_line_fill::ThickLineFill;
 use crate::{Point, PointAa};
 
-/// Anti-aliased line of a given pixel width
+/// Anti-aliased filled line of a given pixel width
 ///
 /// Inclusive: `[start, end]`.
-pub struct WideLineAa {
-    line: WideLine,
+pub struct ThickLineFillAa {
+    line: ThickLineFill,
 }
 
-impl WideLineAa {
-    /// Inclusive anti-aliased line (`[start, end]`) with width `wd`.
+impl ThickLineFillAa {
+    /// Inclusive anti-aliased filled thick line (`[start, end]`) with width `wd`.
     pub fn new(start: Point, end: Point, wd: f32) -> Self {
-        WideLineAa {
-            line: WideLine::new(start, end, wd),
+        ThickLineFillAa {
+            line: ThickLineFill::new(start, end, wd),
         }
     }
 }
 
-impl Iterator for WideLineAa {
+impl Iterator for ThickLineFillAa {
     type Item = PointAa;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -32,8 +32,8 @@ impl Iterator for WideLineAa {
 
 #[cfg(test)]
 mod tests {
-    use super::WideLineAa;
-    use crate::wide_line::WideLine;
+    use super::ThickLineFillAa;
+    use crate::thick_line_fill::ThickLineFill;
     use crate::PointAa;
     use std::vec::Vec;
 
@@ -53,8 +53,8 @@ mod tests {
     }
 
     #[test]
-    fn test_wide_line() {
-        let res: Vec<_> = WideLineAa::new((0, 0), (4, 0), 1.0).collect();
+    fn test_thick_line_fill_aa() {
+        let res: Vec<_> = ThickLineFillAa::new((0, 0), (4, 0), 1.0).collect();
         assert_eq!(
             res,
             [
@@ -66,7 +66,7 @@ mod tests {
             ]
         );
 
-        let res: Vec<_> = WideLineAa::new((0, 0), (5, 2), 3.0).collect();
+        let res: Vec<_> = ThickLineFillAa::new((0, 0), (5, 2), 3.0).collect();
         assert_eq!(
             res,
             [
@@ -97,15 +97,15 @@ mod tests {
     }
 
     #[test]
-    fn test_wide_line_matches_aa_threshold() {
+    fn test_thick_line_fill_matches_aa_threshold() {
         for (start, end, wd) in [
             ((0, 0), (4, 0), 1.0),
             ((0, 0), (5, 2), 3.0),
             ((1, 0), (2, 6), 3.0),
             ((6, 1), (1, 5), 2.5),
         ] {
-            let hard: Vec<_> = WideLine::new(start, end, wd).collect();
-            let from_aa: Vec<_> = WideLineAa::new(start, end, wd)
+            let hard: Vec<_> = ThickLineFill::new(start, end, wd).collect();
+            let from_aa: Vec<_> = ThickLineFillAa::new(start, end, wd)
                 .filter(|(_, c)| *c >= 128)
                 .map(|(p, _)| p)
                 .collect();
@@ -113,11 +113,11 @@ mod tests {
         }
     }
 
-    /// Horizontal hairline. Compare the binary plot in `wide_line`.
+    /// Horizontal hairline. Compare the binary plot in `thick_line_fill`.
     #[test]
-    fn test_wide_line_aa_shape_horizontal() {
+    fn test_thick_line_fill_aa_shape_horizontal() {
         #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((0, 3), (7, 3), 1.0)), [
+        assert_eq!(plot_hex(ThickLineFillAa::new((0, 3), (7, 3), 1.0)), [
             0x00000000,
             0x00000000,
             0x00000000,
@@ -131,9 +131,9 @@ mod tests {
 
     /// Shallow width-3 stroke. Binary counterpart is thresholded at nybble 8.
     #[test]
-    fn test_wide_line_aa_shape_shallow() {
+    fn test_thick_line_fill_aa_shape_shallow() {
         #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((0, 0), (5, 2), 3.0)), [
+        assert_eq!(plot_hex(ThickLineFillAa::new((0, 0), (5, 2), 3.0)), [
             0xfffe8200,
             0xffffff00,
             0x28efff00,
@@ -147,9 +147,9 @@ mod tests {
 
     /// Steep width-3 stroke. Binary counterpart is thresholded at nybble 8.
     #[test]
-    fn test_wide_line_aa_shape_steep() {
+    fn test_thick_line_fill_aa_shape_steep() {
         #[rustfmt::skip]
-        assert_eq!(plot_hex(WideLineAa::new((1, 0), (2, 6), 3.0)), [
+        assert_eq!(plot_hex(ThickLineFillAa::new((1, 0), (2, 6), 3.0)), [
             0x0ff00000,
             0x0ff30000,
             0x0ff50000,

@@ -11,7 +11,7 @@ nano9_raster = { path = "..", default-features = false, features = [
     "ellipse",
     "bezier",
     "aa",
-    "wide-line",
+    "thick-line",
     "round-rect",
     "fill",
     "inclusive",

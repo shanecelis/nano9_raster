@@ -13,7 +13,7 @@ use arraydeque::ArrayDeque;
 use crate::fill::{Fill, Plot, Span};
 use crate::{Point, PointAa};
 
-/// Anti-aliased axis-aligned circle
+/// Anti-aliased circle
 ///
 /// Integer-only. Walks the first octant with the Bresenham circle decision
 /// and derives each pixel's coverage from the signed distance to the true
