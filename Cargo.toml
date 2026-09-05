@@ -34,6 +34,8 @@ bezier = ["line", "dep:libm"]
 aa = ["dep:arraydeque"]
 ## Thick line (`WideLine`; `WideLineAa` with `aa`)
 wide-line = ["dep:libm"]
+## Rounded rectangle outline (`RoundRect`; `.fill()` with `fill`)
+round-rect = []
 
 [package.metadata.docs.rs]
 all-features = true

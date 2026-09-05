@@ -140,7 +140,10 @@ impl Iterator for CircleAa {
 }
 
 #[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "circle", feature = "fill"))))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(feature = "aa", feature = "circle", feature = "fill")))
+)]
 impl Fill<Plot> for CircleAa {
     /// Filled anti-aliased disk: one solid [`Span`] per interior row plus
     /// per-pixel edge coverage [`Plot::Point`]s.

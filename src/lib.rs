@@ -27,6 +27,8 @@ mod line3d;
 mod line_aa;
 #[cfg(all(feature = "aa", feature = "bezier"))]
 mod quad_bezier_aa;
+#[cfg(feature = "round-rect")]
+mod round_rect;
 #[cfg(feature = "wide-line")]
 mod wide_line;
 #[cfg(all(feature = "aa", feature = "wide-line"))]
@@ -65,6 +67,9 @@ pub use line_aa::LineAa;
 #[cfg(all(feature = "aa", feature = "bezier"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "bezier"))))]
 pub use quad_bezier_aa::QuadBezierAa;
+#[cfg(feature = "round-rect")]
+#[cfg_attr(docsrs, doc(cfg(feature = "round-rect")))]
+pub use round_rect::RoundRect;
 #[cfg(feature = "wide-line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "wide-line")))]
 pub use wide_line::WideLine;

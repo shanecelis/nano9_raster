@@ -44,6 +44,7 @@ available as optional Cargo features.
 | 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
 | 4    | Wide line        | X         |          | Murphy              | `wide-line`, `aa`               |
 | -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
+| -    | Rounded rect     |           | X        |                     | `round-rect`, `fill`            |
 
 
 ## Demo
