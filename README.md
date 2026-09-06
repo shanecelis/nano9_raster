@@ -1,5 +1,5 @@
 # nano9_raster
-<img align="right" width="256" height="192" alt="demo" src="https://github.com/user-attachments/assets/91c54fe3-9560-49fa-b77e-536f5d6dbffd" />
+<img align="right" width="256" height="192" alt="demo" src="https://shanecelis.github.io/nano9_raster/demo.gif" />
 
 Iterator-based
 [Bresenham](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm)'s line,
@@ -50,13 +50,15 @@ available as optional Cargo features.
 ## Demo
 
 [▶ Run the WASM demo.](https://shanecelis.github.io/nano9_raster/)
+The GIF on the right is the autoplay tour, recorded on each Pages deploy.
 
 The WASM demo shows a 64×48 canvas that autoplays every applicable combination
-of the six numbered shapes above. Three controls run along the top: click the
-number to advance the shape, the small circle to toggle anti-aliasing, or the
-outline/filled circle to toggle filling. An inapplicable control is grey and
-its setting is retained for the next applicable shape. `Line3d` and the
-center-and-radii `Ellipse` are not shown in the demo.
+of the six numbered shapes above. Four controls run along the top: click the
+number to advance the shape, the small circle to toggle anti-aliasing, the
+outline/filled circle to toggle filling, or play/pause to resume or stop
+autoplay. An inapplicable control is grey and its setting is retained for the
+next applicable shape. `Line3d` and the center-and-radii `Ellipse` are not
+shown in the demo.
 
 ```sh
 cd demo
@@ -66,9 +68,9 @@ trunk serve; # Open the URL trunk prints.
 Left-drag draws the current shape between two points. On a Bézier, thick line,
 or rounded rect, a second drag moves the orange control point (curve handle,
 stroke width, or corner radius); later drags near that handle move it again.
-Right-click stops
-autoplay and advances to the next shape. After a few seconds of inactivity,
-autoplay resumes.
+Right-click pauses
+autoplay and advances to the next shape. Drawing or using a control also
+pauses; click play to start autoplay again.
 
 ## Boundaries
 

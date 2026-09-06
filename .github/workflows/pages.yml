@@ -32,10 +32,13 @@ jobs:
         env:
           NO_COLOR: "true"
         run: trunk build --config demo/Trunk.toml --release
+      - name: Record demo GIF
+        run: cargo run -p record-demo --release -- demo/dist/demo.gif
       - name: Check Pages artifact
         run: |
           set -euo pipefail
           test -f demo/dist/index.html
+          test -s demo/dist/demo.gif
           ls demo/dist/*.js demo/dist/*_bg.wasm >/dev/null
           if grep -E "href=/|from '/|module_or_path: '/" demo/dist/index.html; then
             echo "absolute / asset URLs would break under the GitHub Pages prefix" >&2
