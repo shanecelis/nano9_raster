@@ -43,6 +43,8 @@ mod quad_bezier_aa;
 mod round_rect;
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 mod round_rect_aa;
+#[cfg(feature = "fill")]
+mod spanner;
 #[cfg(feature = "thick-line")]
 mod thick_line;
 #[cfg(all(feature = "aa", feature = "thick-line"))]
@@ -94,6 +96,9 @@ pub use round_rect::RoundRect;
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "round-rect"))))]
 pub use round_rect_aa::RoundRectAa;
+#[cfg(feature = "fill")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
+pub use spanner::Spanner;
 #[cfg(feature = "thick-line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "thick-line")))]
 pub use thick_line::ThickLine;

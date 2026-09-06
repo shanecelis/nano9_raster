@@ -24,7 +24,7 @@ line3d = []
 circle = []
 ## Axis-aligned ellipses (`Ellipse`)
 ellipse = []
-## Filled scanlines (`fill::Span`, `fill::Plot`, `fill::Fill`)
+## Filled scanlines (`fill::Span`, `fill::Plot`, `fill::Fill`, `Spanner`)
 fill = []
 ## Inclusive `[start, end]` adapter for `Line` and `Line3d`
 inclusive = []
