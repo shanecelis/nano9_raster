@@ -95,6 +95,7 @@ pub enum Control {
     Shape,
     AntiAlias,
     Fill,
+    Play,
 }
 
 const AUTO_STATES: [(Kind, bool, bool); 20] = [
@@ -483,6 +484,27 @@ impl Scene {
         }
     }
 
+    /// Play triangle when paused; pause bars while autoplay is running.
+    pub fn stamp_play(&mut self, playing: bool) {
+        for y in 0..7 {
+            for x in 24..31 {
+                self.plot((x, y), BG[0], BG[1], BG[2]);
+            }
+        }
+        if playing {
+            for y in 1..6 {
+                self.plot((25, y), 255, 255, 255);
+                self.plot((27, y), 255, 255, 255);
+            }
+        } else {
+            for (i, w) in [1isize, 2, 3, 2, 1].iter().enumerate() {
+                for dx in 0..*w {
+                    self.plot((25 + dx, 1 + i as isize), 255, 255, 255);
+                }
+            }
+        }
+    }
+
     pub fn reveal_count(&self) -> usize {
         let n = self.pixels.len();
         if n == 0 {
@@ -508,6 +530,7 @@ impl Scene {
             0..=5 => Some(Control::Shape),
             7..=13 => Some(Control::AntiAlias),
             15..=22 => Some(Control::Fill),
+            24..=29 => Some(Control::Play),
             _ => None,
         }
     }
@@ -526,7 +549,7 @@ impl Scene {
             Control::Fill if self.kind.supports_fill() => {
                 self.fill = !self.fill;
             }
-            Control::AntiAlias | Control::Fill => return,
+            Control::AntiAlias | Control::Fill | Control::Play => return,
         }
         self.pixels = self.collect_pixels();
     }
@@ -676,6 +699,7 @@ mod tests {
         assert_eq!(Scene::control_at((2, 3)), Some(Control::Shape));
         assert_eq!(Scene::control_at((10, 3)), Some(Control::AntiAlias));
         assert_eq!(Scene::control_at((18, 3)), Some(Control::Fill));
+        assert_eq!(Scene::control_at((26, 3)), Some(Control::Play));
         assert_eq!(Scene::control_at((30, 3)), None);
         assert_eq!(Scene::control_at((2, 8)), None);
     }
@@ -735,6 +759,30 @@ mod tests {
         assert_eq!(pixel(&scene, 10, 1), [255, 255, 255, 255]);
         assert_eq!(pixel(&scene, 20, 3), [0x55, 0x55, 0x55, 255]);
         assert_eq!(pixel(&scene, 14, 3), BG);
+    }
+
+    #[test]
+    fn play_pause_icons_differ() {
+        let mut scene = Scene::new();
+        scene.clear();
+        scene.stamp_play(true);
+        let pixel = |scene: &Scene, x: usize, y: usize| {
+            let i = (y * super::WIDTH as usize + x) * 4;
+            [
+                scene.buf[i],
+                scene.buf[i + 1],
+                scene.buf[i + 2],
+                scene.buf[i + 3],
+            ]
+        };
+        assert_eq!(pixel(&scene, 25, 3), [255, 255, 255, 255]);
+        assert_eq!(pixel(&scene, 26, 3), BG);
+        assert_eq!(pixel(&scene, 27, 3), [255, 255, 255, 255]);
+
+        scene.stamp_play(false);
+        assert_eq!(pixel(&scene, 25, 3), [255, 255, 255, 255]);
+        assert_eq!(pixel(&scene, 26, 3), [255, 255, 255, 255]);
+        assert_eq!(pixel(&scene, 27, 3), [255, 255, 255, 255]);
     }
 
     #[test]

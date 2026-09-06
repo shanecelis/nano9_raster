@@ -5,8 +5,8 @@
 //! from the lowest corner and emits a solid horizontal span on each row.
 //! [`ThickLine`] is the four [`Line`]s around that quad.
 
-use crate::line::Line;
 use crate::inclusive::Inclusive;
+use crate::line::Line;
 use crate::AndMap;
 use crate::Point;
 

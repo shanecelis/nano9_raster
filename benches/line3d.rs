@@ -1,5 +1,5 @@
-use nano9_raster::{Inclusive, Line3d};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use nano9_raster::{Inclusive, Line3d};
 
 fn fold_half_open(start: (isize, isize, isize), end: (isize, isize, isize)) -> u64 {
     let mut acc = 0u64;

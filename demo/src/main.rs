@@ -1,14 +1,13 @@
 //! Pixelated canvas demo for `nano9_raster`. Autoplay cycles primitives; drag to draw.
+//! Drawing or hitting a control pauses; the play icon resumes.
 
 use nano9_raster::Point;
-use nano9_raster_demo::scene::{self, Scene, HEIGHT, HOLD_FRAMES, WIDTH};
+use nano9_raster_demo::scene::{self, Control, Scene, HEIGHT, HOLD_FRAMES, WIDTH};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData, MouseEvent};
-
-const IDLE_RESUME_FRAMES: u32 = 180;
 
 struct Demo {
     ctx: CanvasRenderingContext2d,
@@ -28,7 +27,7 @@ enum Drag {
 
 enum Mode {
     Auto { step: usize, hold: u32 },
-    Click { idle: u32 },
+    Paused,
 }
 
 impl Demo {
@@ -54,6 +53,8 @@ impl Demo {
     fn present(&mut self) -> Result<(), JsValue> {
         self.scene.plot_control();
         self.scene.stamp_digit();
+        self.scene
+            .stamp_play(matches!(self.mode, Mode::Auto { .. }));
         let image = ImageData::new_with_u8_clamped_array_and_sh(
             Clamped(&mut self.scene.buf),
             scene::WIDTH,
@@ -121,17 +122,17 @@ impl Demo {
                 self.mode = Mode::Auto { step: end, hold };
                 self.present()
             }
-            Mode::Click { idle } => {
-                if self.drag == Drag::None {
-                    let idle = idle + 1;
-                    if idle >= IDLE_RESUME_FRAMES {
-                        self.begin_auto()?;
-                    } else {
-                        self.mode = Mode::Click { idle };
-                    }
-                }
-                Ok(())
-            }
+            Mode::Paused => Ok(()),
+        }
+    }
+
+    fn toggle_play(&mut self) -> Result<(), JsValue> {
+        if matches!(self.mode, Mode::Auto { .. }) {
+            self.drag = Drag::None;
+            self.mode = Mode::Paused;
+            self.present()
+        } else {
+            self.begin_auto()
         }
     }
 
@@ -157,8 +158,11 @@ impl Demo {
         if event.button() != 0 {
             return Ok(());
         }
-        self.mode = Mode::Click { idle: 0 };
         let p = self.grid_xy(event);
+        if Scene::control_at(p) == Some(Control::Play) {
+            return self.toggle_play();
+        }
+        self.mode = Mode::Paused;
         if let Some(control) = Scene::control_at(p) {
             self.drag = Drag::None;
             self.awaiting_control = false;
@@ -233,7 +237,7 @@ impl Demo {
             Drag::None => {}
         }
         self.drag = Drag::None;
-        self.mode = Mode::Click { idle: 0 };
+        self.mode = Mode::Paused;
         self.paint_shape()
     }
 
@@ -246,7 +250,7 @@ impl Demo {
         if self.scene.kind.has_control_point() {
             self.scene.reset_control();
         }
-        self.mode = Mode::Click { idle: 0 };
+        self.mode = Mode::Paused;
         self.paint_shape()
     }
 }

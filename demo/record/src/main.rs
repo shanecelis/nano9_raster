@@ -1,5 +1,5 @@
-use nano9_raster_demo::scene::{autoplay_frames, palette, HEIGHT, WIDTH};
 use gif::{DisposalMethod, Encoder, Frame, Repeat};
+use nano9_raster_demo::scene::{autoplay_frames, palette, HEIGHT, WIDTH};
 use std::borrow::Cow;
 use std::env;
 use std::fs::File;
