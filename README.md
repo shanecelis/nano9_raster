@@ -68,9 +68,7 @@ trunk serve; # Open the URL trunk prints.
 Left-drag draws the current shape between two points. On a Bézier, thick line,
 or rounded rect, a second drag moves the orange control point (curve handle,
 stroke width, or corner radius); later drags near that handle move it again.
-Right-click pauses
-autoplay and advances to the next shape. Drawing or using a control also
-pauses; click play to start autoplay again.
+Drawing or using a control pauses autoplay; click play to start it again.
 
 ## Boundaries
 

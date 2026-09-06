@@ -151,10 +151,6 @@ impl Demo {
     }
 
     fn on_down(&mut self, event: &MouseEvent) -> Result<(), JsValue> {
-        if event.button() == 2 {
-            event.prevent_default();
-            return self.on_right();
-        }
         if event.button() != 0 {
             return Ok(());
         }
@@ -240,19 +236,6 @@ impl Demo {
         self.mode = Mode::Paused;
         self.paint_shape()
     }
-
-    fn on_right(&mut self) -> Result<(), JsValue> {
-        if self.drag != Drag::None {
-            return Ok(());
-        }
-        self.awaiting_control = false;
-        self.scene.next_kind();
-        if self.scene.kind.has_control_point() {
-            self.scene.reset_control();
-        }
-        self.mode = Mode::Paused;
-        self.paint_shape()
-    }
 }
 
 fn request_frame(cb: &Closure<dyn FnMut()>) {
@@ -303,12 +286,6 @@ fn start() {
     }) as Box<dyn FnMut(_)>);
     canvas.set_onmouseleave(Some(on_leave.as_ref().unchecked_ref()));
     on_leave.forget();
-
-    let on_menu = Closure::wrap(Box::new(move |event: MouseEvent| {
-        event.prevent_default();
-    }) as Box<dyn FnMut(_)>);
-    canvas.set_oncontextmenu(Some(on_menu.as_ref().unchecked_ref()));
-    on_menu.forget();
 
     let raf: Rc<RefCell<Option<Closure<dyn FnMut()>>>> = Rc::new(RefCell::new(None));
     let raf_cb = raf.clone();
