@@ -170,7 +170,7 @@ impl Demo {
         {
             self.drag = Drag::Control;
             self.awaiting_control = false;
-            self.scene.control = p;
+            self.scene.set_control(p);
         } else {
             self.drag = Drag::Chord;
             self.awaiting_control = false;
@@ -202,7 +202,7 @@ impl Demo {
                 if p == self.scene.control {
                     return Ok(());
                 }
-                self.scene.control = p;
+                self.scene.set_control(p);
             }
         }
         self.paint_shape()
@@ -227,7 +227,7 @@ impl Demo {
                 self.awaiting_control = self.scene.kind.has_control_point();
             }
             Drag::Control => {
-                self.scene.control = p;
+                self.scene.set_control(p);
                 self.awaiting_control = false;
             }
             Drag::None => {}

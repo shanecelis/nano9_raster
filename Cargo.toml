@@ -30,14 +30,14 @@ fill = []
 inclusive = []
 ## Quadratic Bézier (`QuadBezier`); implies `line`
 bezier = ["line", "dep:libm"]
-## Anti-aliasing variants of enabled shapes (`LineAa` with `line`, `CircleAa` with `circle`, `EllipseAa` with `ellipse`, `QuadBezierAa` with `bezier`, `ThickLineAa`/`ThickLineFillAa` with `thick-line`, `RoundRectAa` with `round-rect`)
+## Anti-aliasing variants of enabled shapes (`LineAa` with `line`, `CircleAa` with `circle`, `EllipseAa` with `ellipse`, `QuadBezierAa` with `bezier`, `ThickLineAa`/`ThickLineFillAa` with `thick-line`, `celis::ThickLineAa` with `celis`, `RoundRectAa` with `round-rect`)
 aa = ["dep:arraydeque"]
 ## Thick line (`ThickLine`, `ThickLineFill`; `*Aa` with `aa`)
 thick-line = ["dep:libm"]
 ## Murphy perpendicular thickening (`murphy::ThickLineFill`)
 murphy = ["line"]
-## Scanline thick line (`celis::ThickLine`, `celis::ThickLineFill`)
-celis = ["line"]
+## Scanline thick line (`celis::ThickLine`, `celis::ThickLineFill`; `celis::ThickLineAa` with `aa`)
+celis = ["line", "inclusive"]
 ## Rounded rectangle outline (`RoundRect`, `RoundRectAa` with `aa`; `.fill()` with `fill`)
 round-rect = []
 

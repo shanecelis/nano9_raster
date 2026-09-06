@@ -3,12 +3,17 @@
 //! A chord `A→B` of width `wd` is the convex quad whose ends are the Murphy
 //! spokes at `A` and `B`. [`ThickLineFill`] walks the two y-monotonic chains
 //! from the lowest corner and emits a solid horizontal span on each row.
-//! [`ThickLine`] is the four [`Line`]s around that quad.
+//! [`ThickLine`] is the four [`Line`]s around that quad. [`ThickLineAa`] is the
+//! same walk with [`crate::LineAa`].
 
 use crate::inclusive::Inclusive;
 use crate::line::Line;
+#[cfg(feature = "aa")]
+use crate::line_aa::LineAa;
 use crate::AndMap;
 use crate::Point;
+#[cfg(feature = "aa")]
+use crate::PointAa;
 
 fn offset(p: Point, dir: Point, steps: isize) -> Point {
     if steps <= 0 || (dir.0 == 0 && dir.1 == 0) {
@@ -268,6 +273,29 @@ impl ThickLine {
                     .skip(1)
                     .and_map(move |p| (p.0 + ab.0, p.1 + ab.1)),
             )
+    }
+}
+
+/// Anti-aliased outline of the perpendicular parallelogram.
+///
+/// Same two-edge walk as [`ThickLine`], using [`LineAa`].
+#[cfg(feature = "aa")]
+#[cfg_attr(docsrs, doc(cfg(feature = "aa")))]
+pub struct ThickLineAa;
+
+#[cfg(feature = "aa")]
+impl ThickLineAa {
+    /// Inclusive anti-aliased thick-line outline (`[start, end]`) with width `wd`.
+    pub fn new(start: Point, end: Point, wd: f32) -> impl Iterator<Item = PointAa> {
+        let [a, b, c, d] = corners(start, end, wd);
+        let da = (d.0 - a.0, d.1 - a.1);
+        let ab = (a.0 - b.0, a.1 - b.1);
+        LineAa::new(a, b)
+            .inclusive()
+            .and_map(move |(p, cov)| ((p.0 + da.0, p.1 + da.1), cov))
+            .chain(LineAa::new(b, c)
+                   .skip(1)
+                   .and_map(move |(p, cov)| ((p.0 + ab.0, p.1 + ab.1), cov)))
     }
 }
 
@@ -594,5 +622,129 @@ mod tests {
                 "{start:?}->{end:?} expected Murphy extras outside the box"
             );
         }
+    }
+
+    #[cfg(feature = "aa")]
+    fn plot_hex(points: impl Iterator<Item = crate::PointAa>) -> [u32; 8] {
+        let mut grid = [0u32; 8];
+        for ((x, y), c) in points {
+            if !(0..8).contains(&x) || !(0..8).contains(&y) {
+                continue;
+            }
+            let shift = ((7 - x) * 4) as u32;
+            let nyb = (c as u32) >> 4;
+            let old = (grid[y as usize] >> shift) & 0xf;
+            grid[y as usize] = (grid[y as usize] & !(0xf << shift)) | (old.max(nyb) << shift);
+        }
+        grid
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn aa_covers_hard_outline() {
+        use super::ThickLineAa;
+        for (start, end, wd) in [
+            ((0, 3), (7, 3), 3.0),
+            ((3, 0), (3, 7), 3.0),
+            ((0, 0), (5, 2), 3.0),
+            ((0, 0), (7, 7), 3.0),
+            ((0, 7), (7, 0), 3.0),
+            ((0, 0), (7, 7), 1.0),
+            ((4, 4), (4, 4), 3.0),
+        ] {
+            let hard: BTreeSet<_> = ThickLine::new(start, end, wd).collect();
+            let aa: BTreeSet<_> = ThickLineAa::new(start, end, wd).map(|(p, _)| p).collect();
+            assert!(hard.is_subset(&aa), "{start:?}->{end:?} wd={wd}");
+        }
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_aa_shape_horizontal() {
+        use super::ThickLineAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((0, 3), (7, 3), 3.0)), [
+            0x00000000,
+            0x00000000,
+            0xffffffff,
+            0xf000000f,
+            0xffffffff,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+        ]);
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((0, 3), (7, 3), 1.0)), [
+            0x00000000,
+            0x00000000,
+            0x00000000,
+            0xffffffff,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_aa_shape_vertical() {
+        use super::ThickLineAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((3, 0), (3, 7), 3.0)), [
+            0x00fff000,
+            0x00f0f000,
+            0x00f0f000,
+            0x00f0f000,
+            0x00f0f000,
+            0x00f0f000,
+            0x00f0f000,
+            0x00fff000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_aa_shape_shallow() {
+        use super::ThickLineAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((0, 0), (5, 2), 3.0)), [
+            0xf6cc6000,
+            0xf9339f00,
+            0x06cc6f00,
+            0x00039f00,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_aa_shape_diagonal() {
+        use super::ThickLineAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((0, 0), (7, 7), 3.0)), [
+            0xf3f30000,
+            0x303f3000,
+            0xf303f300,
+            0x3f303f30,
+            0x03f303f3,
+            0x003f303f,
+            0x0003f303,
+            0x00003f3f,
+        ]);
+        #[rustfmt::skip]
+        assert_eq!(plot_hex(ThickLineAa::new((0, 7), (7, 0), 3.0)), [
+            0x00003f3f,
+            0x0003f303,
+            0x003f303f,
+            0x03f303f3,
+            0x3f303f30,
+            0xf303f300,
+            0x303f3000,
+            0xf3f30000,
+        ]);
     }
 }

@@ -2,12 +2,17 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, RoundRectAa, ThickLine, ThickLineAa, ThickLineFillAa,
+    QuadBezierAa, RoundRect, RoundRectAa, ThickLineFillAa,
 };
 
-#[cfg(feature = "murphy")]
+#[cfg(feature = "celis")]
+use nano9_raster::celis::{ThickLine, ThickLineAa, ThickLineFill};
+#[cfg(not(feature = "celis"))]
+use nano9_raster::{ThickLine, ThickLineAa};
+
+#[cfg(all(feature = "murphy", not(feature = "celis")))]
 use nano9_raster::murphy::ThickLineFill;
-#[cfg(not(feature = "murphy"))]
+#[cfg(not(any(feature = "celis", feature = "murphy")))]
 use nano9_raster::ThickLineFill;
 
 pub const WIDTH: u32 = 64;
@@ -132,6 +137,7 @@ pub struct Scene {
     pub pixels: Vec<(Point, u8)>,
     pub tour: u32,
     auto_state: usize,
+    thick_width: f32,
 }
 
 impl Scene {
@@ -147,6 +153,7 @@ impl Scene {
             pixels: Vec::new(),
             tour: 0,
             auto_state: 0,
+            thick_width: 3.0,
         };
         scene.load_shape();
         scene.clear();
@@ -323,18 +330,19 @@ impl Scene {
         (dx * dx + dy * dy).sqrt()
     }
 
-    fn thick_line_control(start: Point, end: Point) -> Point {
+    fn thick_line_control(start: Point, end: Point, width: f32) -> Point {
         let mid = ((start.0 + end.0) / 2, (start.1 + end.1) / 2);
         let dx = (end.0 - start.0) as f64;
         let dy = (end.1 - start.1) as f64;
         let len = Self::chord_len(start, end);
+        let w = f64::from(width.max(1.0));
         if len < 1.0 {
-            return (mid.0, mid.1 - 3);
+            return (mid.0, mid.1 - w.round() as isize);
         }
-        let ox = (-dy * 3.0 / len).round() as isize;
-        let oy = (dx * 3.0 / len).round() as isize;
+        let ox = (-dy * w / len).round() as isize;
+        let oy = (dx * w / len).round() as isize;
         if ox == 0 && oy == 0 {
-            (mid.0, mid.1 - 3)
+            (mid.0, mid.1 - w.round() as isize)
         } else {
             (mid.0 + ox, mid.1 + oy)
         }
@@ -360,9 +368,16 @@ impl Scene {
     pub fn reset_control(&mut self) {
         self.control = match self.kind {
             Kind::RoundRect => Self::round_rect_control(self.start, self.end),
-            Kind::ThickLine => Self::thick_line_control(self.start, self.end),
+            Kind::ThickLine => Self::thick_line_control(self.start, self.end, self.thick_width),
             _ => Self::control_point(self.start, self.end),
         };
+    }
+
+    pub fn set_control(&mut self, p: Point) {
+        self.control = p;
+        if self.kind == Kind::ThickLine {
+            self.thick_width = self.thick_line_width();
+        }
     }
 
     pub fn handle_point(&self) -> Point {
@@ -817,5 +832,22 @@ mod tests {
         scene.control = (25, 14);
         assert_eq!(scene.thick_line_width(), 6.0);
         assert_eq!(scene.handle_point(), (25, 14));
+    }
+
+    #[test]
+    fn thick_line_retains_width_on_new_chord() {
+        let mut scene = Scene::new();
+        scene.kind = Kind::ThickLine;
+        scene.start = (10, 20);
+        scene.end = (40, 20);
+        scene.reset_control();
+        scene.set_control((18, 26));
+        assert_eq!(scene.thick_line_width(), 6.0);
+
+        scene.start = (5, 10);
+        scene.end = (45, 10);
+        scene.reset_control();
+        assert_eq!(scene.thick_line_width(), 6.0);
+        assert_eq!(scene.handle_point(), (25, 16));
     }
 }
