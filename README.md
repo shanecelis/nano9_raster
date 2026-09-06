@@ -49,6 +49,8 @@ available as optional Cargo features.
 
 ## Demo
 
+[▶ Run the WASM demo.](https://shanecelis.github.io/nano9_raster/)
+
 The WASM demo shows a 64×48 canvas that autoplays every applicable combination
 of the six numbered shapes above. Three controls run along the top: click the
 number to advance the shape, the small circle to toggle anti-aliasing, or the

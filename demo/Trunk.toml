@@ -3,4 +3,6 @@ target = "index.html"
 dist = "dist"
 release = true
 cargo_profile = "wasm"
+# Relative so GitHub Pages works under /nano9_raster/.
+public_url = "./"
 minify = "on_release"
