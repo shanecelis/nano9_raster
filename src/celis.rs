@@ -6,6 +6,8 @@
 //! [`ThickLine`] is the four [`Line`]s around that quad.
 
 use crate::line::Line;
+use crate::inclusive::Inclusive;
+use crate::AndMap;
 use crate::Point;
 
 fn offset(p: Point, dir: Point, steps: isize) -> Point {
@@ -244,29 +246,25 @@ impl Iterator for ThickLineFill {
     }
 }
 
-/// Outline of the perpendicular box: `a→b→c→d→a` as four half-open [`Line`]s.
-pub struct ThickLine {
-    inner: core::iter::Chain<core::iter::Chain<core::iter::Chain<Line, Line>, Line>, Line>,
-}
+/// Outline of the perpendicular parallelogram.
+///
+/// Walks `a→b` and emits each point plus `(d - a)` (the parallel `d→c`).
+/// Then walks `a→d` and emits each point plus `(b - a)` (the parallel `b→c`).
+pub struct ThickLine;
 
 impl ThickLine {
     /// Thick-line outline (`[start, end]`) with width `wd`.
-    pub fn new(start: Point, end: Point, wd: f32) -> Self {
+    pub fn new(start: Point, end: Point, wd: f32) -> impl Iterator<Item = Point> {
         let [a, b, c, d] = corners(start, end, wd);
-        ThickLine {
-            inner: Line::new(a, b)
-                .chain(Line::new(b, c))
-                .chain(Line::new(c, d))
-                .chain(Line::new(d, a)),
-        }
-    }
-}
-
-impl Iterator for ThickLine {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        let da = (d.0 - a.0, d.1 - a.1);
+        let ab = (a.0 - b.0, a.1 - b.1);
+        Line::new(a, b)
+            .and_map(move |p| (p.0 + da.0, p.1 + da.1))
+            .chain(
+                Line::new(b, c)
+                    .inclusive()
+                    .and_map(move |p| (p.0 + ab.0, p.1 + ab.1)),
+            )
     }
 }
 
@@ -419,6 +417,77 @@ mod tests {
                 "{start:?}->{end:?} wd={wd}"
             );
         }
+    }
+
+    #[test]
+    fn test_thick_line_shape_horizontal() {
+        #[rustfmt::skip]
+        assert_eq!(plot_binary(ThickLine::new((0, 3), (7, 3), 3.0)), [
+            0b00000000,
+            0b00000000,
+            0b11111111,
+            0b10000001,
+            0b11111111,
+            0b00000000,
+            0b00000000,
+            0b00000000,
+        ]);
+    }
+
+    #[test]
+    fn test_thick_line_shape_vertical() {
+        #[rustfmt::skip]
+        assert_eq!(plot_binary(ThickLine::new((3, 0), (3, 7), 3.0)), [
+            0b00111000,
+            0b00101000,
+            0b00101000,
+            0b00101000,
+            0b00101000,
+            0b00101000,
+            0b00101000,
+            0b00111000,
+        ]);
+    }
+
+    #[test]
+    fn test_thick_line_shape_shallow() {
+        #[rustfmt::skip]
+        assert_eq!(plot_binary(ThickLine::new((0, 0), (5, 2), 3.0)), [
+            0b10110000,
+            0b11001100,
+            0b00110100,
+            0b00001100,
+            0b00000000,
+            0b00000000,
+            0b00000000,
+            0b00000000,
+        ]);
+    }
+
+    #[test]
+    fn test_thick_line_shape_diagonal() {
+        #[rustfmt::skip]
+        assert_eq!(plot_binary(ThickLine::new((0, 0), (7, 7), 3.0)), [
+            0b10100000,
+            0b00010000,
+            0b10001000,
+            0b01000100,
+            0b00100010,
+            0b00010001,
+            0b00001000,
+            0b00000101,
+        ]);
+        #[rustfmt::skip]
+        assert_eq!(plot_binary(ThickLine::new((0, 7), (7, 0), 3.0)), [
+            0b00000101,
+            0b00001000,
+            0b00010001,
+            0b00100010,
+            0b01000100,
+            0b10001000,
+            0b00010000,
+            0b10100000,
+        ]);
     }
 
     #[test]

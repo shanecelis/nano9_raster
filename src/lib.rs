@@ -5,6 +5,9 @@
 #[cfg(test)]
 extern crate std;
 
+mod and_map;
+pub(crate) use and_map::AndMap;
+
 #[cfg(feature = "bezier")]
 mod bezier;
 #[cfg(feature = "celis")]
