@@ -23,9 +23,11 @@ fn fold_murphy(start: (isize, isize), end: (isize, isize), wd: f32) -> u64 {
 
 fn fold_celis(start: (isize, isize), end: (isize, isize), wd: f32) -> u64 {
     let mut acc = 0u64;
-    for (x, y) in Celis::new(start, end, wd) {
-        acc ^= x as u64;
-        acc ^= (y as u64).wrapping_mul(0x9e37_79b9);
+    for s in Celis::new(start, end, wd) {
+        for x in s.x0..=s.x1 {
+            acc ^= x as u64;
+            acc ^= (s.y as u64).wrapping_mul(0x9e37_79b9);
+        }
     }
     acc
 }

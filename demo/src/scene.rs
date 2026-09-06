@@ -252,9 +252,20 @@ impl Scene {
                     .filter(|(_, c)| *c > 0)
                     .collect()
             }
-            Kind::ThickLine if self.fill => ThickLineFill::new(start, end, self.thick_line_width())
-                .map(|p| (p, 255))
-                .collect(),
+            Kind::ThickLine if self.fill => {
+                #[cfg(feature = "celis")]
+                {
+                    ThickLineFill::new(start, end, self.thick_line_width())
+                        .flat_map(|s| (s.x0..=s.x1).map(move |x| ((x, s.y), 255)))
+                        .collect()
+                }
+                #[cfg(not(feature = "celis"))]
+                {
+                    ThickLineFill::new(start, end, self.thick_line_width())
+                        .map(|p| (p, 255))
+                        .collect()
+                }
+            }
             Kind::ThickLine => ThickLine::new(start, end, self.thick_line_width())
                 .map(|p| (p, 255))
                 .collect(),

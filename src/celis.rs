@@ -2,7 +2,7 @@
 //!
 //! A chord `A→B` of width `wd` is the convex quad whose ends are the Murphy
 //! spokes at `A` and `B`. [`ThickLineFill`] walks the two y-monotonic chains
-//! from the lowest corner and emits a solid horizontal span on each row.
+//! from the lowest corner and feeds them to [`crate::Spanner`].
 //! [`ThickLine`] is the four [`Line`]s around that quad. [`ThickLineAa`] is the
 //! same walk with [`crate::LineAa`].
 
@@ -14,6 +14,8 @@ use crate::AndMap;
 use crate::Point;
 #[cfg(feature = "aa")]
 use crate::PointAa;
+use crate::Span;
+use crate::Spanner;
 
 fn offset(p: Point, dir: Point, steps: isize) -> Point {
     if steps <= 0 || (dir.0 == 0 && dir.1 == 0) {
@@ -24,6 +26,18 @@ fn offset(p: Point, dir: Point, steps: isize) -> Point {
 }
 
 /// Corners `a, b, c, d` in cycle order: spoke at `start`, then spoke at `end`.
+///
+/// ```text
+///            a                 d
+///             +---------------+
+///            /                 \
+///      start●-------------------●end
+///            \                 /
+///             +---------------+
+///            b                 c
+/// ```
+///
+/// `a` and `d` are the `(dy, -dx)` offsets; `b` and `c` are `(-dy, dx)`.
 fn corners(start: Point, end: Point, wd: f32) -> [Point; 4] {
     let dx = end.0 - start.0;
     let dy = end.1 - start.1;
@@ -54,6 +68,25 @@ fn idx_max(v: &[Point; 4]) -> usize {
         }
     }
     i
+}
+
+/// Corners `a, b, c, d` in cycle order, rotated so `a` is min and `c` is max.
+///
+/// `a` is the least `(y, x)` (bottom-left); `c` is the greatest (top-right).
+///
+/// ```text
+///            d                 c
+///             +---------------+
+///            /           max /
+///           /               /
+///          +---------------+
+///         a                 b
+///       min
+/// ```
+fn corners_min_max(start: Point, end: Point, wd: f32) -> [Point; 4] {
+    let v = corners(start, end, wd);
+    let i = idx_min(&v);
+    [v[i], v[(i + 1) % 4], v[(i + 2) % 4], v[(i + 3) % 4]]
 }
 
 /// Up to two edges from `from` to `to` walking `dir` (±1) around the cycle.
@@ -87,167 +120,41 @@ fn chain_edges(
     (e0, e1)
 }
 
-struct Chain {
-    line: Line,
-    end: Point,
-    pending_end: bool,
-    next: Option<(Point, Point)>,
-    peek: Option<Point>,
-}
-
-impl Chain {
-    fn empty() -> Self {
-        Chain {
-            line: Line::new((0, 0), (0, 0)),
-            end: (0, 0),
-            pending_end: false,
-            next: None,
-            peek: None,
-        }
-    }
-
-    fn new(first: Option<(Point, Point)>, second: Option<(Point, Point)>) -> Self {
-        let Some((s, e)) = first else {
-            return Chain::empty();
-        };
-        let mut chain = Chain {
-            line: Line::new(s, e),
-            end: e,
-            pending_end: true,
-            next: second,
-            peek: None,
-        };
-        chain.pull();
-        chain
-    }
-
-    fn pull(&mut self) {
-        if self.peek.is_some() {
-            return;
-        }
-        if let Some(p) = self.line.next() {
-            self.peek = Some(p);
-            return;
-        }
-        if self.pending_end {
-            self.pending_end = false;
-            self.peek = Some(self.end);
-            return;
-        }
-        if let Some((s, e)) = self.next.take() {
-            self.line = Line::new(s, e);
-            self.end = e;
-            self.pending_end = true;
-            let _ = self.line.next();
-            self.pull();
-        }
-    }
-
-    fn peek(&mut self) -> Option<Point> {
-        self.pull();
-        self.peek
-    }
-
-    fn pop(&mut self) -> Option<Point> {
-        self.pull();
-        self.peek.take()
-    }
-
-    fn absorb_row(&mut self, y: isize, lo: &mut isize, hi: &mut isize) {
-        while let Some((x, py)) = self.peek() {
-            if py != y {
-                break;
-            }
-            let _ = self.pop();
-            if x < *lo {
-                *lo = x;
-            }
-            if x > *hi {
-                *hi = x;
-            }
-        }
-    }
+fn walk(
+    e0: Option<(Point, Point)>,
+    e1: Option<(Point, Point)>,
+    fallback: Point,
+) -> impl Iterator<Item = Point> {
+    let fallback = (e0.is_none() && e1.is_none()).then_some(fallback);
+    e0.into_iter()
+        .chain(e1)
+        .enumerate()
+        .flat_map(|(i, (s, e))| Line::new(s, e).inclusive().skip((i != 0) as usize))
+        .chain(fallback)
 }
 
 /// Inclusive filled thick line (`[start, end]`) of width `wd`.
 ///
-/// Solid horizontal spans of the perpendicular box.
-pub struct ThickLineFill {
-    left: Chain,
-    right: Chain,
-    y: isize,
-    y_max: isize,
-    x: isize,
-    x_hi: isize,
-    started: bool,
-    done: bool,
-}
+/// Solid horizontal spans of the perpendicular box, via [`Spanner`].
+pub struct ThickLineFill;
 
 impl ThickLineFill {
     /// Inclusive thick line (`[start, end]`) with width `wd`.
-    pub fn new(start: Point, end: Point, wd: f32) -> Self {
-        let v = corners(start, end, wd);
-        let imin = idx_min(&v);
-        let imax = idx_max(&v);
-        let (l0, l1) = chain_edges(&v, imin, imax, 1);
-        let (r0, r1) = chain_edges(&v, imin, imax, -1);
-        let y = v[imin].1;
-        let y_max = v[imax].1;
-        let single = l0.is_none() && r0.is_none();
-        ThickLineFill {
-            left: Chain::new(l0, l1),
-            right: Chain::new(r0, r1),
-            y,
-            y_max,
-            x: if single { v[imin].0 } else { 0 },
-            x_hi: if single { v[imin].0 } else { -1 },
-            started: single,
-            done: false,
-        }
-    }
+    pub fn new(start: Point, end: Point, wd: f32) -> impl Iterator<Item = Span> {
+        // let v = corners(start, end, wd);
 
-    fn enter_row(&mut self) -> bool {
-        if self.started {
-            if self.y == self.y_max {
-                return false;
-            }
-            self.y += 1;
-        } else {
-            self.started = true;
-        }
-        let mut lo = isize::MAX;
-        let mut hi = isize::MIN;
-        self.left.absorb_row(self.y, &mut lo, &mut hi);
-        self.right.absorb_row(self.y, &mut lo, &mut hi);
-        if lo > hi {
-            self.x = 0;
-            self.x_hi = -1;
-        } else {
-            self.x = lo;
-            self.x_hi = hi;
-        }
-        true
-    }
-}
-
-impl Iterator for ThickLineFill {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.done {
-                return None;
-            }
-            if self.x <= self.x_hi {
-                let p = (self.x, self.y);
-                self.x += 1;
-                return Some(p);
-            }
-            if !self.enter_row() {
-                self.done = true;
-                return None;
-            }
-        }
+        let [a, b, c, d] = corners_min_max(start, end, wd);
+        Spanner::new(
+            Line::new(a, b).chain(Line::new(b, c).inclusive()),
+            Line::new(a, d).chain(Line::new(d, c).inclusive()),
+        )
+        // let imin = idx_min(&v);
+        // let imax = idx_max(&v);
+        // let (l0, l1) = chain_edges(&v, imin, imax, 1);
+        // let (r0, r1) = chain_edges(&v, imin, imax, -1);
+        // let p = v[imin];
+        // Spanner::new(walk(l0, l1, p), walk(r0, r1, p))
+        //     .flat_map(|s| (s.x0..=s.x1).map(move |x| (x, s.y)))
     }
 }
 
@@ -303,11 +210,37 @@ impl ThickLineAa {
 
 #[cfg(test)]
 mod tests {
-    use super::{corners, ThickLine, ThickLineFill};
+    use super::{corners, corners_min_max, idx_max, idx_min, ThickLine, ThickLineFill};
     use crate::line::Line;
     use crate::Point;
     use std::collections::BTreeSet;
     use std::vec::Vec;
+
+    #[test]
+    fn corners_min_max_puts_extrema_at_a_and_c() {
+        for (start, end, wd) in [
+            ((0, 3), (7, 3), 3.0),
+            ((3, 0), (3, 7), 3.0),
+            ((0, 0), (7, 7), 3.0),
+            ((0, 7), (7, 0), 3.0),
+            ((0, 0), (5, 2), 3.0),
+            ((0, 0), (7, 7), 1.0),
+        ] {
+            let v = corners(start, end, wd);
+            let [a, b, c, d] = corners_min_max(start, end, wd);
+            assert_eq!(a, v[idx_min(&v)], "{start:?}->{end:?}");
+            assert_eq!(c, v[idx_max(&v)], "{start:?}->{end:?}");
+            let mut got = [a, b, c, d];
+            let mut raw = v;
+            got.sort_unstable();
+            raw.sort_unstable();
+            assert_eq!(got, raw, "{start:?}->{end:?}");
+        }
+    }
+
+    fn expand(spans: impl Iterator<Item = crate::Span>) -> impl Iterator<Item = Point> {
+        spans.flat_map(|s| (s.x0..=s.x1).map(move |x| (x, s.y)))
+    }
 
     fn plot_binary(points: impl Iterator<Item = Point>) -> [u8; 8] {
         let mut grid = [0u8; 8];
@@ -352,7 +285,7 @@ mod tests {
     #[test]
     fn width_one_is_inclusive_line() {
         for (start, end) in [((0, 3), (7, 3)), ((0, 0), (7, 7)), ((0, 7), (7, 0))] {
-            let fill: BTreeSet<_> = ThickLineFill::new(start, end, 1.0).collect();
+            let fill: BTreeSet<_> = expand(ThickLineFill::new(start, end, 1.0)).collect();
             let mut line: BTreeSet<_> = Line::new(start, end).collect();
             line.insert(end);
             assert_eq!(fill, line, "{start:?}->{end:?}");
@@ -361,14 +294,14 @@ mod tests {
 
     #[test]
     fn degenerate_is_the_point() {
-        let fill: Vec<_> = ThickLineFill::new((3, 4), (3, 4), 3.0).collect();
+        let fill: Vec<_> = expand(ThickLineFill::new((3, 4), (3, 4), 3.0)).collect();
         assert_eq!(fill, [(3, 4)]);
     }
 
     #[test]
     fn test_thick_line_fill_shape_horizontal() {
         #[rustfmt::skip]
-        assert_eq!(plot_binary(ThickLineFill::new((0, 3), (7, 3), 3.0)), [
+        assert_eq!(plot_binary(expand(ThickLineFill::new((0, 3), (7, 3), 3.0))), [
             0b00000000,
             0b00000000,
             0b11111111,
@@ -383,7 +316,7 @@ mod tests {
     #[test]
     fn test_thick_line_fill_shape_vertical() {
         #[rustfmt::skip]
-        assert_eq!(plot_binary(ThickLineFill::new((3, 0), (3, 7), 3.0)), [
+        assert_eq!(plot_binary(expand(ThickLineFill::new((3, 0), (3, 7), 3.0))), [
             0b00111000,
             0b00111000,
             0b00111000,
@@ -398,7 +331,7 @@ mod tests {
     #[test]
     fn test_thick_line_fill_shape_shallow() {
         #[rustfmt::skip]
-        assert_eq!(plot_binary(ThickLineFill::new((0, 0), (5, 2), 3.0)), [
+        assert_eq!(plot_binary(expand(ThickLineFill::new((0, 0), (5, 2), 3.0))), [
             0b11110000,
             0b11111100,
             0b00111100,
@@ -413,7 +346,7 @@ mod tests {
     #[test]
     fn test_thick_line_fill_shape_diagonal() {
         #[rustfmt::skip]
-        assert_eq!(plot_binary(ThickLineFill::new((0, 0), (7, 7), 3.0)), [
+        assert_eq!(plot_binary(expand(ThickLineFill::new((0, 0), (7, 7), 3.0))), [
             0b11100000,
             0b11110000,
             0b11111000,
@@ -424,7 +357,7 @@ mod tests {
             0b00000111,
         ]);
         #[rustfmt::skip]
-        assert_eq!(plot_binary(ThickLineFill::new((0, 7), (7, 0), 3.0)), [
+        assert_eq!(plot_binary(expand(ThickLineFill::new((0, 7), (7, 0), 3.0))), [
             0b00000111,
             0b00001111,
             0b00011111,
@@ -444,7 +377,7 @@ mod tests {
             ((0, 0), (5, 2), 3.0),
             ((0, 3), (7, 3), 3.0),
         ] {
-            let fill: BTreeSet<_> = ThickLineFill::new(start, end, wd).collect();
+            let fill: BTreeSet<_> = expand(ThickLineFill::new(start, end, wd)).collect();
             assert!(
                 sandwiched_holes(&fill).is_empty(),
                 "{start:?}->{end:?} wd={wd}"
@@ -557,7 +490,7 @@ mod tests {
             ((0, 0), (5, 2), 3.0),
             ((4, 4), (4, 4), 3.0),
         ] {
-            let fill: BTreeSet<_> = ThickLineFill::new(start, end, wd).collect();
+            let fill: BTreeSet<_> = expand(ThickLineFill::new(start, end, wd)).collect();
             let outline: BTreeSet<_> = ThickLine::new(start, end, wd).collect();
             assert!(outline.is_subset(&fill), "{start:?}->{end:?} wd={wd}");
         }
@@ -575,7 +508,7 @@ mod tests {
             ((0, 0), (7, 7), 1.0),
             ((4, 4), (4, 4), 3.0),
         ] {
-            let celis: BTreeSet<_> = ThickLineFill::new(start, end, wd).collect();
+            let celis: BTreeSet<_> = expand(ThickLineFill::new(start, end, wd)).collect();
             let murphy: BTreeSet<_> = Murphy::new(start, end, wd).collect();
             assert_eq!(celis, murphy, "{start:?}->{end:?} wd={wd}");
         }
@@ -613,7 +546,7 @@ mod tests {
     fn diagonal_fill_is_subset_of_murphy() {
         use crate::murphy::ThickLineFill as Murphy;
         for (start, end) in [((0, 0), (7, 7)), ((0, 7), (7, 0)), ((7, 7), (0, 0))] {
-            let celis: BTreeSet<_> = ThickLineFill::new(start, end, 3.0).collect();
+            let celis: BTreeSet<_> = expand(ThickLineFill::new(start, end, 3.0)).collect();
             let murphy: BTreeSet<_> = Murphy::new(start, end, 3.0).collect();
             assert!(
                 celis.is_subset(&murphy),
