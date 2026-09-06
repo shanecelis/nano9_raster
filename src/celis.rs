@@ -258,11 +258,14 @@ impl ThickLine {
         let [a, b, c, d] = corners(start, end, wd);
         let da = (d.0 - a.0, d.1 - a.1);
         let ab = (a.0 - b.0, a.1 - b.1);
+        // To avoid any overdraw, a-b is inclusive...
         Line::new(a, b)
+            .inclusive()
             .and_map(move |p| (p.0 + da.0, p.1 + da.1))
             .chain(
+                // ...and b-c is exclusive of its endpoints.
                 Line::new(b, c)
-                    .inclusive()
+                    .skip(1)
                     .and_map(move |p| (p.0 + ab.0, p.1 + ab.1)),
             )
     }
