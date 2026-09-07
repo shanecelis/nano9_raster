@@ -1,6 +1,9 @@
 //! Axis-aligned ellipses from Alois Zingl's `plotEllipse` and `plotEllipseRect`.
 
 #[cfg(feature = "fill")]
+use arraydeque::ArrayDeque;
+
+#[cfg(feature = "fill")]
 use crate::fill::{Fill, Span};
 use crate::Point;
 
@@ -393,9 +396,7 @@ impl EllipseRect {
     fn fill(self) -> EllipseRectFill {
         EllipseRectFill {
             e: self,
-            pending: [Span { x0: 0, x1: 0, y: 0 }; 2],
-            pending_len: 0,
-            pending_i: 0,
+            pending: ArrayDeque::new(),
             open0: None,
             open1: None,
             finished: false,
@@ -407,9 +408,7 @@ impl EllipseRect {
 #[cfg(feature = "fill")]
 struct EllipseRectFill {
     e: EllipseRect,
-    pending: [Span; 2],
-    pending_len: u8,
-    pending_i: u8,
+    pending: ArrayDeque<Span, 2>,
     open0: Option<Span>,
     open1: Option<Span>,
     finished: bool,
@@ -440,8 +439,9 @@ fn set_track(open: &mut Option<Span>, x0: isize, x1: isize, y: isize) -> Option<
 #[cfg(feature = "fill")]
 impl EllipseRectFill {
     fn push(&mut self, h: Span) {
-        self.pending[self.pending_len as usize] = h;
-        self.pending_len += 1;
+        self.pending
+            .push_back(h)
+            .expect("EllipseRectFill pending overflow");
     }
 
     fn absorb_y0(&mut self, x0: isize, x1: isize, y: isize) {
@@ -473,13 +473,9 @@ impl Iterator for EllipseRectFill {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if (self.pending_i as usize) < self.pending_len as usize {
-                let h = self.pending[self.pending_i as usize];
-                self.pending_i += 1;
+            if let Some(h) = self.pending.pop_front() {
                 return Some(h);
             }
-            self.pending_len = 0;
-            self.pending_i = 0;
 
             if self.finished {
                 return None;

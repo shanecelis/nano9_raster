@@ -3,6 +3,8 @@
 //! Coverage is inverted from Zingl's `setPixelAA`: `255` is fully on the curve,
 //! `0` is fully off.
 
+use arraydeque::ArrayDeque;
+
 #[cfg(feature = "inclusive")]
 use crate::Inclusive;
 use crate::{Point, PointAa};
@@ -81,9 +83,7 @@ pub struct LineAa {
     sy: isize,
     err: isize,
     ed: usize,
-    pending: [PointAa; 3],
-    pending_len: u8,
-    pending_i: u8,
+    pending: ArrayDeque<PointAa, 4>,
     done: bool,
     inclusive: bool,
 }
@@ -115,31 +115,16 @@ impl LineAa {
             sy,
             err: dx - dy,
             ed,
-            pending: [((0, 0), 0); 3],
-            pending_len: 0,
-            pending_i: 0,
+            pending: ArrayDeque::new(),
             done: false,
             inclusive: false,
         }
     }
 
     fn push(&mut self, p: Point, fade: u8) {
-        self.pending[self.pending_len as usize] = (p, fade);
-        self.pending_len += 1;
-    }
-
-    fn pop_pending(&mut self) -> Option<PointAa> {
-        if self.pending_i < self.pending_len {
-            let p = self.pending[self.pending_i as usize];
-            self.pending_i += 1;
-            if self.pending_i == self.pending_len {
-                self.pending_i = 0;
-                self.pending_len = 0;
-            }
-            Some(p)
-        } else {
-            None
-        }
+        self.pending
+            .push_back((p, fade))
+            .expect("LineAa pending overflow");
     }
 }
 
@@ -147,7 +132,7 @@ impl Iterator for LineAa {
     type Item = PointAa;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(p) = self.pop_pending() {
+        if let Some(p) = self.pending.pop_front() {
             return Some(p);
         }
         if self.done {
@@ -164,11 +149,10 @@ impl Iterator for LineAa {
             if self.x0 == self.x1 {
                 self.done = true;
                 if !self.inclusive {
-                    // Clear the queue.
-                    self.pop_pending();
+                    self.pending.clear();
                     return None;
                 } else {
-                    return self.pop_pending();
+                    return self.pending.pop_front();
                 }
             }
             if e2 + self.dy < ed {
@@ -184,11 +168,10 @@ impl Iterator for LineAa {
             if self.y0 == self.y1 {
                 self.done = true;
                 if !self.inclusive {
-                    // Clear the queue.
-                    self.pop_pending();
+                    self.pending.clear();
                     return None;
                 } else {
-                    return self.pop_pending();
+                    return self.pending.pop_front();
                 }
             }
             if self.dx - e2 < ed {
@@ -201,7 +184,7 @@ impl Iterator for LineAa {
             self.y0 += self.sy;
         }
 
-        self.pop_pending()
+        self.pending.pop_front()
     }
 }
 

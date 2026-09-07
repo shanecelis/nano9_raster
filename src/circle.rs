@@ -1,6 +1,9 @@
 //! Midpoint circle from Alois Zingl's `plotCircle`.
 
 #[cfg(feature = "fill")]
+use arraydeque::ArrayDeque;
+
+#[cfg(feature = "fill")]
 use crate::fill::{Fill, Span};
 use crate::Point;
 
@@ -98,9 +101,7 @@ impl Fill for Circle {
     fn fill(self) -> impl Iterator<Item = Span> {
         CircleFill {
             c: self,
-            pending: [Span { x0: 0, x1: 0, y: 0 }; 4],
-            pending_len: 0,
-            pending_i: 0,
+            pending: ArrayDeque::new(),
             last_y: None,
             last_x: None,
             open_py: None,
@@ -116,9 +117,7 @@ impl Fill for Circle {
 #[cfg(feature = "fill")]
 pub(crate) struct CircleFill {
     c: Circle,
-    pending: [Span; 4],
-    pending_len: u8,
-    pending_i: u8,
+    pending: ArrayDeque<Span, 4>,
     last_y: Option<isize>,
     last_x: Option<isize>,
     open_py: Option<Span>,
@@ -143,8 +142,9 @@ fn widen(open: &mut Option<Span>, x0: isize, x1: isize, y: isize) {
 #[cfg(feature = "fill")]
 impl CircleFill {
     fn push(&mut self, h: Span) {
-        self.pending[self.pending_len as usize] = h;
-        self.pending_len += 1;
+        self.pending
+            .push_back(h)
+            .expect("CircleFill pending overflow");
     }
 
     fn take_open(&mut self, open: &mut Option<Span>) {
@@ -184,13 +184,9 @@ impl Iterator for CircleFill {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if (self.pending_i as usize) < self.pending_len as usize {
-                let h = self.pending[self.pending_i as usize];
-                self.pending_i += 1;
+            if let Some(h) = self.pending.pop_front() {
                 return Some(h);
             }
-            self.pending_len = 0;
-            self.pending_i = 0;
 
             if self.c.quad == 4 {
                 if self.c.done {

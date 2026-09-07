@@ -3,6 +3,8 @@
 //! Coverage is inverted from Zingl's `setPixelAA`: `255` is fully on the curve,
 //! `0` is fully off.
 
+use arraydeque::ArrayDeque;
+
 use crate::bezier::segments;
 use crate::{LineAa, Point, PointAa};
 
@@ -39,9 +41,7 @@ struct QuadBezierAaSeg {
     dy: f64,
     err: f64,
     state: BezierAaState,
-    pending: [PointAa; 3],
-    pending_len: u8,
-    pending_i: u8,
+    pending: ArrayDeque<PointAa, 4>,
 }
 
 impl QuadBezierAaSeg {
@@ -98,9 +98,7 @@ impl QuadBezierAaSeg {
                 dy,
                 err,
                 state: BezierAaState::Curve,
-                pending: [((0, 0), 0); 3],
-                pending_len: 0,
-                pending_i: 0,
+                pending: ArrayDeque::new(),
             };
         }
 
@@ -118,29 +116,14 @@ impl QuadBezierAaSeg {
             dy: 0.0,
             err: 0.0,
             state: BezierAaState::Line(LineAa::new((x0, y0), (x2, y2))),
-            pending: [((0, 0), 0); 3],
-            pending_len: 0,
-            pending_i: 0,
+            pending: ArrayDeque::new(),
         }
     }
 
     fn push(&mut self, p: Point, fade: u8) {
-        self.pending[self.pending_len as usize] = (p, fade);
-        self.pending_len += 1;
-    }
-
-    fn pop_pending(&mut self) -> Option<PointAa> {
-        if self.pending_i < self.pending_len {
-            let p = self.pending[self.pending_i as usize];
-            self.pending_i += 1;
-            if self.pending_i == self.pending_len {
-                self.pending_i = 0;
-                self.pending_len = 0;
-            }
-            Some(p)
-        } else {
-            None
-        }
+        self.pending
+            .push_back((p, fade))
+            .expect("QuadBezierAa pending overflow");
     }
 
     fn step_curve(&mut self) {
@@ -191,7 +174,7 @@ impl Iterator for QuadBezierAaSeg {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(p) = self.pop_pending() {
+            if let Some(p) = self.pending.pop_front() {
                 return Some(p);
             }
             match self.state {
