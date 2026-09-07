@@ -86,6 +86,8 @@ pub struct LineAa {
     pending: ArrayDeque<PointAa, 4>,
     done: bool,
     inclusive: bool,
+    emit_y_partner: bool,
+    emit_x_partner: bool,
 }
 
 impl LineAa {
@@ -118,7 +120,20 @@ impl LineAa {
             pending: ArrayDeque::new(),
             done: false,
             inclusive: false,
+            emit_y_partner: true,
+            emit_x_partner: true,
         }
+    }
+
+    /// Keep the on-line pixel; emit the partner only on one side.
+    ///
+    /// `true` is left of the directed line, `false` is right. Call before
+    /// `inclusive()`.
+    pub fn bias(mut self, left: bool) -> Self {
+        let y_is_left = self.sx == self.sy;
+        self.emit_y_partner = left == y_is_left;
+        self.emit_x_partner = left != y_is_left;
+        self
     }
 
     fn push(&mut self, p: Point, fade: u8) {
@@ -155,7 +170,7 @@ impl Iterator for LineAa {
                     return self.pending.pop_front();
                 }
             }
-            if e2 + self.dy < ed {
+            if self.emit_y_partner && e2 + self.dy < ed {
                 self.push(
                     (self.x0, self.y0 + self.sy),
                     coverage_i(255 * (e2 + self.dy) / ed),
@@ -174,7 +189,7 @@ impl Iterator for LineAa {
                     return self.pending.pop_front();
                 }
             }
-            if self.dx - e2 < ed {
+            if self.emit_x_partner && self.dx - e2 < ed {
                 self.push(
                     (x2 + self.sx, self.y0),
                     coverage_i(255 * (self.dx - e2) / ed),
@@ -356,5 +371,54 @@ mod tests {
 
         let res: Vec<_> = LineAa::new((3, 3), (3, 3)).inclusive().collect();
         assert_eq!(res, [((3, 3), 255)]);
+    }
+
+    #[test]
+    fn bias_splits_partners_on_a_diagonal() {
+        let both: Vec<_> = LineAa::new((0, 0), (3, 3)).collect();
+        let left: Vec<_> = LineAa::new((0, 0), (3, 3)).bias(true).collect();
+        let right: Vec<_> = LineAa::new((0, 0), (3, 3)).bias(false).collect();
+
+        assert_eq!(
+            left,
+            [
+                ((0, 0), 255),
+                ((0, 1), 64),
+                ((1, 1), 255),
+                ((1, 2), 64),
+                ((2, 2), 255),
+                ((2, 3), 64),
+            ]
+        );
+        assert_eq!(
+            right,
+            [
+                ((0, 0), 255),
+                ((1, 0), 64),
+                ((1, 1), 255),
+                ((2, 1), 64),
+                ((2, 2), 255),
+                ((3, 2), 64),
+            ]
+        );
+
+        let on_line = [((0, 0), 255), ((1, 1), 255), ((2, 2), 255)];
+        assert!(on_line
+            .iter()
+            .all(|p| left.contains(p) && right.contains(p)));
+        assert_eq!(left.len() + right.len() - on_line.len(), both.len());
+    }
+
+    #[test]
+    fn bias_is_a_no_op_on_an_axis() {
+        let both: Vec<_> = LineAa::new((0, 0), (4, 0)).collect();
+        assert_eq!(
+            LineAa::new((0, 0), (4, 0)).bias(true).collect::<Vec<_>>(),
+            both
+        );
+        assert_eq!(
+            LineAa::new((0, 0), (4, 0)).bias(false).collect::<Vec<_>>(),
+            both
+        );
     }
 }
