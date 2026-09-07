@@ -189,6 +189,7 @@ impl ThickLineAa {
         let da = (d.0 - a.0, d.1 - a.1);
         let ab = (a.0 - b.0, a.1 - b.1);
         LineAa::new(a, b)
+            .inclusive()
             .and_map(move |(p, cov)| ((p.0 + da.0, p.1 + da.1), cov))
             .chain(
                 // This overdraws on point C and D unfortunately.

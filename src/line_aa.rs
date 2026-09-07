@@ -3,6 +3,8 @@
 //! Coverage is inverted from Zingl's `setPixelAA`: `255` is fully on the curve,
 //! `0` is fully off.
 
+#[cfg(feature = "inclusive")]
+use crate::Inclusive;
 use crate::{Point, PointAa};
 
 fn coverage_i(zingl_fade: isize) -> u8 {
@@ -65,7 +67,8 @@ fn isqrt(x: usize) -> usize {
 
 /// Anti-aliased 2D line
 ///
-/// Inclusive: `[start, end]`.
+/// Interval: Half-open, `[start, end)`. The dropped end pixel is always
+/// coverage `255`, so [`Inclusive`] restores it with no missing fade.
 /// Source: Zingl `plotLineAA`
 pub struct LineAa {
     x0: isize,
@@ -82,10 +85,11 @@ pub struct LineAa {
     pending_len: u8,
     pending_i: u8,
     done: bool,
+    inclusive: bool,
 }
 
 impl LineAa {
-    /// Inclusive anti-aliased line (`[start, end]`).
+    /// Half-open anti-aliased line (`[start, end)`).
     pub fn new(start: Point, end: Point) -> Self {
         let (x0, y0) = start;
         let (x1, y1) = end;
@@ -115,6 +119,7 @@ impl LineAa {
             pending_len: 0,
             pending_i: 0,
             done: false,
+            inclusive: false,
         }
     }
 
@@ -158,7 +163,13 @@ impl Iterator for LineAa {
         if 2 * e2 >= -self.dx {
             if self.x0 == self.x1 {
                 self.done = true;
-                return self.pop_pending();
+                if !self.inclusive {
+                    // Clear the queue.
+                    self.pop_pending();
+                    return None;
+                } else {
+                    return self.pop_pending();
+                }
             }
             if e2 + self.dy < ed {
                 self.push(
@@ -172,7 +183,13 @@ impl Iterator for LineAa {
         if 2 * e2 <= self.dy {
             if self.y0 == self.y1 {
                 self.done = true;
-                return self.pop_pending();
+                if !self.inclusive {
+                    // Clear the queue.
+                    self.pop_pending();
+                    return None;
+                } else {
+                    return self.pop_pending();
+                }
             }
             if self.dx - e2 < ed {
                 self.push(
@@ -185,6 +202,17 @@ impl Iterator for LineAa {
         }
 
         self.pop_pending()
+    }
+}
+
+#[cfg(feature = "inclusive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "inclusive")))]
+impl Inclusive for LineAa {
+    type Item = PointAa;
+
+    fn inclusive(mut self) -> impl Iterator<Item = PointAa> {
+        self.inclusive = true;
+        self
     }
 }
 
@@ -270,6 +298,53 @@ mod tests {
         let res: Vec<_> = LineAa::new((0, 0), (4, 0)).collect();
         assert_eq!(
             res,
+            [((0, 0), 255), ((1, 0), 255), ((2, 0), 255), ((3, 0), 255)]
+        );
+
+        let res: Vec<_> = LineAa::new((0, 1), (6, 4)).collect();
+        assert_eq!(
+            res,
+            [
+                ((0, 1), 255),
+                ((1, 1), 128),
+                ((1, 2), 128),
+                ((2, 2), 255),
+                ((3, 2), 128),
+                ((3, 3), 128),
+                ((4, 3), 255),
+                ((5, 3), 128),
+                ((5, 4), 128)
+            ]
+        );
+
+        let res: Vec<_> = LineAa::new((0, 0), (3, 3)).collect();
+        assert_eq!(
+            res,
+            [
+                ((0, 0), 255),
+                ((0, 1), 64),
+                ((1, 0), 64),
+                ((1, 1), 255),
+                ((1, 2), 64),
+                ((2, 1), 64),
+                ((2, 2), 255),
+                ((2, 3), 64),
+                ((3, 2), 64)
+            ]
+        );
+
+        let res: Vec<_> = LineAa::new((3, 3), (3, 3)).collect();
+        assert_eq!(res, []);
+    }
+
+    #[cfg(feature = "inclusive")]
+    #[test]
+    fn test_inclusive_line_aa() {
+        use crate::Inclusive;
+
+        let res: Vec<_> = LineAa::new((0, 0), (4, 0)).inclusive().collect();
+        assert_eq!(
+            res,
             [
                 ((0, 0), 255),
                 ((1, 0), 255),
@@ -279,7 +354,7 @@ mod tests {
             ]
         );
 
-        let res: Vec<_> = LineAa::new((0, 1), (6, 4)).collect();
+        let res: Vec<_> = LineAa::new((0, 1), (6, 4)).inclusive().collect();
         assert_eq!(
             res,
             [
@@ -296,21 +371,7 @@ mod tests {
             ]
         );
 
-        let res: Vec<_> = LineAa::new((0, 0), (3, 3)).collect();
-        assert_eq!(
-            res,
-            [
-                ((0, 0), 255),
-                ((0, 1), 64),
-                ((1, 0), 64),
-                ((1, 1), 255),
-                ((1, 2), 64),
-                ((2, 1), 64),
-                ((2, 2), 255),
-                ((2, 3), 64),
-                ((3, 2), 64),
-                ((3, 3), 255)
-            ]
-        );
+        let res: Vec<_> = LineAa::new((3, 3), (3, 3)).inclusive().collect();
+        assert_eq!(res, [((3, 3), 255)]);
     }
 }

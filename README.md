@@ -95,9 +95,10 @@ rectangle bounds produce exactly the corresponding center-and-radii
 
 ## Inclusive
 
-The `inclusive` Cargo feature adds the `Inclusive` trait on `Line` and `Line3d`,
-which returns an iterator that includes the end point making the interval
-inclusive `[start, end]` instead of half-open. This approach
+The `inclusive` Cargo feature adds the `Inclusive` trait on `Line`, `Line3d`,
+and `LineAa`, which returns an iterator that includes the end point making the
+interval inclusive `[start, end]` instead of half-open. `LineAa`'s dropped end
+is always coverage `255`. This approach
 follows [indubitablement2's
 work](https://github.com/indubitablement2/bresenham-rs), which is careful not
 to incur any runtime penalty.
@@ -121,10 +122,10 @@ overhead.
 
 ## Bresenham Line Variant Notes
 
-By default lines are drawn on a half-open interval `[start, end)`: the `start`
-point is included, but the `end` point is not. This allows one to chain multiple
-lines together without any overdraw. However, one can opt-in to the "inclusive"
-Cargo feature described above.
+By default `Line` and `LineAa` are drawn on a half-open interval `[start, end)`:
+the `start` point is included, but the `end` point is not. This allows one to
+chain multiple lines together without any overdraw. However, one can opt-in to
+the "inclusive" Cargo feature described above.
 
 This particular implementation of Bresenham breaks ties in quadrants such that
 an inclusive line drawn from `(A, B)` and from `(B, A)` will cover the same

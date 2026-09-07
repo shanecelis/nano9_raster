@@ -208,9 +208,10 @@ impl Scene {
         let start = self.start;
         let end = self.end;
         match self.kind {
-            Kind::Line if self.anti_alias => {
-                LineAa::new(start, end).filter(|(_, c)| *c > 0).collect()
-            }
+            Kind::Line if self.anti_alias => LineAa::new(start, end)
+                .inclusive()
+                .filter(|(_, c)| *c > 0)
+                .collect(),
             Kind::Line => Line::new(start, end).map(|p| (p, 255)).collect(),
             Kind::Circle if self.anti_alias && self.fill => {
                 Self::expand_plots(CircleAa::new(start, Self::radius(start, end)).fill())
@@ -479,7 +480,7 @@ impl Scene {
         let a_segments = [((8, 6), (10, 1)), ((10, 1), (13, 6)), ((9, 4), (12, 4))];
         if self.anti_alias {
             for (start, end) in a_segments {
-                let points: Vec<_> = LineAa::new(start, end).collect();
+                let points: Vec<_> = LineAa::new(start, end).inclusive().collect();
                 for (point, alpha) in points {
                     let color = (u16::from(alpha) * u16::from(aa_color) / 255) as u8;
                     self.plot(point, color, color, color);

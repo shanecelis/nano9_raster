@@ -199,7 +199,7 @@ impl Iterator for QuadBezierAaSeg {
                 BezierAaState::Line(ref mut line) => {
                     return line.next().or_else(|| {
                         self.state = BezierAaState::Done;
-                        None
+                        Some(((self.x2, self.y2), 255))
                     })
                 }
                 BezierAaState::Curve => self.step_curve(),

@@ -26,7 +26,7 @@ circle = []
 ellipse = []
 ## Filled scanlines (`fill::Span`, `fill::Plot`, `fill::Fill`, `Spanner`)
 fill = []
-## Inclusive `[start, end]` adapter for `Line` and `Line3d`
+## Inclusive `[start, end]` adapter for `Line`, `Line3d`, and `LineAa`
 inclusive = []
 ## Quadratic Bézier (`QuadBezier`); implies `line`
 bezier = ["line", "dep:libm"]
