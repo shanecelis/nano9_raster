@@ -141,20 +141,11 @@ pub struct ThickLineFill;
 impl ThickLineFill {
     /// Inclusive thick line (`[start, end]`) with width `wd`.
     pub fn new(start: Point, end: Point, wd: f32) -> impl Iterator<Item = Span> {
-        // let v = corners(start, end, wd);
-
         let [a, b, c, d] = corners_min_max(start, end, wd);
         Spanner::new(
             Line::new(a, b).chain(Line::new(b, c).inclusive()),
             Line::new(a, d).chain(Line::new(d, c).inclusive()),
         )
-        // let imin = idx_min(&v);
-        // let imax = idx_max(&v);
-        // let (l0, l1) = chain_edges(&v, imin, imax, 1);
-        // let (r0, r1) = chain_edges(&v, imin, imax, -1);
-        // let p = v[imin];
-        // Spanner::new(walk(l0, l1, p), walk(r0, r1, p))
-        //     .flat_map(|s| (s.x0..=s.x1).map(move |x| (x, s.y)))
     }
 }
 
