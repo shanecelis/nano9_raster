@@ -2,11 +2,13 @@
 
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, RoundRectAa, ThickLineFillAa,
+    QuadBezierAa, RoundRect, RoundRectAa,
 };
 
 #[cfg(feature = "celis")]
-use nano9_raster::celis::{ThickLine, ThickLineAa, ThickLineFill};
+use nano9_raster::celis::{ThickLine, ThickLineAa, ThickLineFill, ThickLineFillAa};
+#[cfg(not(feature = "celis"))]
+use nano9_raster::ThickLineFillAa;
 #[cfg(not(feature = "celis"))]
 use nano9_raster::{ThickLine, ThickLineAa};
 
@@ -244,9 +246,38 @@ impl Scene {
                 .map(|p| (p, 255))
                 .collect(),
             Kind::ThickLine if self.anti_alias && self.fill => {
-                ThickLineFillAa::new(start, end, self.thick_line_width())
-                    .filter(|(_, c)| *c > 0)
-                    .collect()
+                #[cfg(feature = "celis")]
+                {
+                    // FillAa overdraws the outline onto the spans; keep the
+                    // solid coverage.
+                    let mut pixels = std::collections::BTreeMap::new();
+                    for plot in ThickLineFillAa::new(start, end, self.thick_line_width()) {
+                        match plot {
+                            Plot::Span(h) => {
+                                for x in h.x0..=h.x1 {
+                                    pixels
+                                        .entry((x, h.y))
+                                        .and_modify(|c: &mut u8| *c = (*c).max(255))
+                                        .or_insert(255);
+                                }
+                            }
+                            Plot::Point((p, c)) if c > 0 => {
+                                pixels
+                                    .entry(p)
+                                    .and_modify(|old| *old = (*old).max(c))
+                                    .or_insert(c);
+                            }
+                            Plot::Point(_) => {}
+                        }
+                    }
+                    pixels.into_iter().collect()
+                }
+                #[cfg(not(feature = "celis"))]
+                {
+                    ThickLineFillAa::new(start, end, self.thick_line_width())
+                        .filter(|(_, c)| *c > 0)
+                        .collect()
+                }
             }
             Kind::ThickLine if self.anti_alias => {
                 ThickLineAa::new(start, end, self.thick_line_width())

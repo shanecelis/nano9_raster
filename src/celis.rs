@@ -4,13 +4,16 @@
 //! spokes at `A` and `B`. [`ThickLineFill`] walks the two y-monotonic chains
 //! from the lowest corner and feeds them to [`crate::Spanner`].
 //! [`ThickLine`] is the four [`Line`]s around that quad. [`ThickLineAa`] is the
-//! same walk with [`crate::LineAa`].
+//! same walk with [`crate::LineAa`]. [`ThickLineFillAa`] is the solid fill plus
+//! an exterior-biased [`LineAa`] on each edge.
 
 use crate::inclusive::Inclusive;
 use crate::line::Line;
 #[cfg(feature = "aa")]
 use crate::line_aa::LineAa;
 use crate::AndMap;
+#[cfg(feature = "aa")]
+use crate::Plot;
 use crate::Point;
 #[cfg(feature = "aa")]
 use crate::PointAa;
@@ -197,6 +200,34 @@ impl ThickLineAa {
                     .skip(1)
                     .and_map(move |(p, cov)| ((p.0 + ab.0, p.1 + ab.1), cov)),
             )
+    }
+}
+
+/// Filled anti-aliased thick line: solid spans, then an exterior AA trim.
+///
+/// The trim is [`LineAa::bias`]`(true)` on each `a→b→c→d` edge. That still
+/// emits the on-line pixel, which already sits in the fill, so the outline
+/// overdraws. A jagged edge can also put a "left" partner inside the span.
+/// Last-write will dim those pixels unless the consumer takes the max
+/// coverage.
+#[cfg(feature = "aa")]
+#[cfg_attr(docsrs, doc(cfg(feature = "aa")))]
+pub struct ThickLineFillAa;
+
+#[cfg(feature = "aa")]
+impl ThickLineFillAa {
+    /// Inclusive anti-aliased filled thick line (`[start, end]`) with width `wd`.
+    pub fn new(start: Point, end: Point, wd: f32) -> impl Iterator<Item = Plot> {
+        let [a, b, c, d] = corners(start, end, wd);
+        ThickLineFill::new(start, end, wd).map(Plot::Span).chain(
+            LineAa::new(a, b)
+                .bias(true)
+                .inclusive()
+                .chain(LineAa::new(b, c).bias(true).inclusive().skip(1))
+                .chain(LineAa::new(c, d).bias(true).inclusive().skip(1))
+                .chain(LineAa::new(d, a).bias(true).inclusive().skip(1))
+                .map(Plot::Point),
+        )
     }
 }
 
@@ -672,6 +703,181 @@ mod tests {
             0xf303f300,
             0x303f3000,
             0xf3f30000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    fn plot_hex_fill_aa(plots: impl Iterator<Item = crate::Plot>) -> [u32; 8] {
+        use crate::Plot;
+        plot_hex(plots.flat_map(|plot| {
+            match plot {
+                Plot::Span(s) => (s.x0..=s.x1)
+                    .map(move |x| ((x, s.y), 255))
+                    .collect::<Vec<_>>(),
+                Plot::Point((p, c)) => std::vec![(p, c)],
+            }
+        }))
+    }
+
+    #[cfg(feature = "aa")]
+    fn fill_pixels(start: Point, end: Point, wd: f32) -> BTreeSet<Point> {
+        expand(ThickLineFill::new(start, end, wd)).collect()
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn fill_aa_spans_cover_hard_fill() {
+        use super::ThickLineFillAa;
+        use crate::Plot;
+        for (start, end, wd) in [
+            ((0, 3), (7, 3), 3.0),
+            ((3, 0), (3, 7), 3.0),
+            ((0, 0), (5, 2), 3.0),
+            ((0, 0), (7, 7), 3.0),
+            ((0, 7), (7, 0), 3.0),
+            ((0, 0), (7, 7), 1.0),
+            ((4, 4), (4, 4), 3.0),
+        ] {
+            let hard = fill_pixels(start, end, wd);
+            let mut from_spans = BTreeSet::new();
+            for plot in ThickLineFillAa::new(start, end, wd) {
+                if let Plot::Span(s) = plot {
+                    from_spans.extend((s.x0..=s.x1).map(|x| (x, s.y)));
+                }
+            }
+            assert_eq!(from_spans, hard, "{start:?}->{end:?} wd={wd}");
+        }
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn fill_aa_points_are_on_or_beside_the_fill() {
+        use super::ThickLineFillAa;
+        use crate::Plot;
+        for (start, end, wd) in [
+            ((0, 0), (5, 2), 3.0),
+            ((0, 0), (7, 7), 3.0),
+            ((0, 7), (7, 0), 3.0),
+        ] {
+            let fill = fill_pixels(start, end, wd);
+            let mut saw_fade = false;
+            for plot in ThickLineFillAa::new(start, end, wd) {
+                let Plot::Point((p, c)) = plot else {
+                    continue;
+                };
+                if c == 0 {
+                    continue;
+                }
+                let in_fill = fill.contains(&p);
+                let beside = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                    .iter()
+                    .any(|&(dx, dy)| fill.contains(&(p.0 + dx, p.1 + dy)));
+                assert!(
+                    in_fill || beside,
+                    "{p:?} neither in nor beside fill {start:?}->{end:?}"
+                );
+                if !in_fill && c < 255 {
+                    saw_fade = true;
+                }
+            }
+            assert!(saw_fade, "expected exterior trim {start:?}->{end:?}");
+        }
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn fill_aa_width_one_is_the_inclusive_line() {
+        use super::ThickLineFillAa;
+        use crate::Plot;
+        for (start, end) in [((0, 3), (7, 3)), ((0, 0), (7, 7)), ((0, 7), (7, 0))] {
+            let mut from_spans = BTreeSet::new();
+            for plot in ThickLineFillAa::new(start, end, 1.0) {
+                if let Plot::Span(s) = plot {
+                    from_spans.extend((s.x0..=s.x1).map(|x| (x, s.y)));
+                }
+            }
+            let mut line: BTreeSet<_> = Line::new(start, end).collect();
+            line.insert(end);
+            assert_eq!(from_spans, line, "{start:?}->{end:?}");
+        }
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_fill_aa_shape_horizontal() {
+        use super::ThickLineFillAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex_fill_aa(ThickLineFillAa::new((0, 3), (7, 3), 3.0)), [
+            0x00000000,
+            0x00000000,
+            0xffffffff,
+            0xffffffff,
+            0xffffffff,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_fill_aa_shape_vertical() {
+        use super::ThickLineFillAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex_fill_aa(ThickLineFillAa::new((3, 0), (3, 7), 3.0)), [
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+            0x00fff000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_fill_aa_shape_shallow() {
+        use super::ThickLineFillAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex_fill_aa(ThickLineFillAa::new((0, 0), (5, 2), 3.0)), [
+            0xffff6000,
+            0xffffff00,
+            0x06ffff00,
+            0x0003ff00,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+            0x00000000,
+        ]);
+    }
+
+    #[cfg(feature = "aa")]
+    #[test]
+    fn test_thick_line_fill_aa_shape_diagonal() {
+        use super::ThickLineFillAa;
+        #[rustfmt::skip]
+        assert_eq!(plot_hex_fill_aa(ThickLineFillAa::new((0, 0), (7, 7), 3.0)), [
+            0xfff30000,
+            0xffff3000,
+            0xfffff300,
+            0x3fffff30,
+            0x03fffff3,
+            0x003fffff,
+            0x0003ffff,
+            0x00003fff,
+        ]);
+        #[rustfmt::skip]
+        assert_eq!(plot_hex_fill_aa(ThickLineFillAa::new((0, 7), (7, 0), 3.0)), [
+            0x00003fff,
+            0x0003ffff,
+            0x003fffff,
+            0x03fffff3,
+            0x3fffff30,
+            0xfffff300,
+            0xffff3000,
+            0xfff30000,
         ]);
     }
 }
