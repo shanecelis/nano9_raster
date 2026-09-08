@@ -14,7 +14,14 @@
       html,
       body {
         margin: 0;
-        background: #111;
+        min-height: 100%;
+        background: #3a3a3a;
+      }
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       canvas {
         image-rendering: pixelated;
@@ -23,6 +30,7 @@
         height: 384px;
         cursor: crosshair;
         display: block;
+        background: #111;
       }
     </style>
   </head>
