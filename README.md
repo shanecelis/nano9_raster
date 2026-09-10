@@ -36,29 +36,26 @@ Bresenham published algorithms for lines and circles. And a number of other
 shapes were generalized from his work (see references below), which are
 available as optional Cargo features.
 
-| Demo | Shape            | AA option | fillable | Author              | Feature                         |
-|------|------------------|-----------|----------|---------------------|---------------------------------|
-| 0    | Line             | X         |          | Bresenham, Pitteway | `line`, `aa`                    |
-| 1    | Circle           | X         | X        | Bresenham, Fu       | `circle`, `aa`, `fill`          |
-| 2    | Ellipse          | X         | X        | Pitteway, Vadillo   | `ellipse`, `aa`, `fill`         |
-| 3    | Quadratic Bézier | X         |          | Zingl               | `bezier`, `aa`                  |
+| Demo | Shape            | AA option | fillable | Author               | Feature                               |
+|------|------------------|-----------|----------|----------------------|---------------------------------------|
+| 0    | Line             | X         |          | Bresenham, Pitteway  | `line`, `aa`                          |
+| 1    | Circle           | X         | X        | Bresenham, Fu        | `circle`, `aa`, `fill`                |
+| 2    | Ellipse          | X         | X        | Pitteway, Vadillo    | `ellipse`, `aa`, `fill`               |
+| 3    | Quadratic Bézier | X         |          | Zingl                | `bezier`, `aa`                        |
 | 4    | Thick line       | X         | X        | Murphy, Zingl, Celis | `thick-line`, `aa`, `murphy`, `celis` |
-| 5    | Rounded rect     | X         | X        |                     | `round-rect`, `aa`, `fill`      |
-| -    | 3D Line          |           |          | Kaufman             | `line3d`                        |
+| 5    | Rounded rect     | X         | X        |                      | `round-rect`, `aa`, `fill`            |
 
 
 ## Demo
 
 [▶ Run the WASM demo.](https://shanecelis.github.io/nano9_raster/)
-The GIF on the right is the autoplay tour, recorded on each Pages deploy.
 
 The WASM demo shows a 64×48 canvas that autoplays every applicable combination
 of the six numbered shapes above. Four controls run along the top: click the
 number to advance the shape, the small circle to toggle anti-aliasing, the
 outline/filled circle to toggle filling, or play/pause to resume or stop
 autoplay. An inapplicable control is grey and its setting is retained for the
-next applicable shape. `Line3d` and the center-and-radii `Ellipse` are not
-shown in the demo.
+next applicable shape. The center-and-radii `Ellipse` is not shown in the demo.
 
 ```sh
 cd demo
@@ -83,25 +80,24 @@ convenient.
 ## Fill
 
 The `fill` Cargo feature adds the `Fill` trait on `Circle`, `CircleAa`,
-`Ellipse`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can be constructed from a center and radii
-with `new`, or from opposite bounding-rectangle corners with `from_rect`. The
-trait is generic on its iterator item and defaults to `Span`: one solid
-inclusive `[x0, x1]` chord per distinct row. The AA shapes implement
-`Fill<Plot>` and mix those spans with `Point`s carrying anti-aliased rim
-coverage. The circle uses Vadillo's integer algorithm; the ellipses extend its
-squared implicit-function band with the ellipse's local gradient. Even-sized
-rectangle bounds produce exactly the corresponding center-and-radii
-`EllipseAa` result.
+`Ellipse`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can be
+constructed from a center and radii with `new`, or from opposite
+bounding-rectangle corners with `from_rect`. The trait is generic on its
+iterator item and defaults to `Span`: one solid inclusive `[x0, x1]` chord per
+distinct row. The AA shapes implement `Fill<Plot>` and mix those spans with
+`Point`s carrying anti-aliased rim coverage. The circle uses Vadillo's integer
+algorithm; the ellipses extend its squared implicit-function band with the
+ellipse's local gradient. Even-sized rectangle bounds produce exactly the
+corresponding center-and-radii `EllipseAa` result.
 
 ## Inclusive
 
-The `inclusive` Cargo feature adds the `Inclusive` trait on `Line`, `Line3d`,
-and `LineAa`, which returns an iterator that includes the end point making the
-interval inclusive `[start, end]` instead of half-open. `LineAa`'s dropped end
-is always coverage `255`. This approach
-follows [indubitablement2's
-work](https://github.com/indubitablement2/bresenham-rs), which is careful not
-to incur any runtime penalty.
+The `inclusive` Cargo feature adds the `Inclusive` trait on `Line`, `LineAa`,
+and `QuadBezier`, which returns an iterator that includes the end point
+making the interval inclusive `[start, end]` instead of half-open. `LineAa`'s
+omitted end point is always coverage `255`. This approach follows
+[indubitablement2's work](https://github.com/indubitablement2/bresenham-rs),
+which is careful not to incur any runtime penalty.
  
 ### Inclusive Example
 
@@ -122,7 +118,8 @@ overhead.
 
 ## Bresenham Line Variant Notes
 
-By default `Line` and `LineAa` are drawn on a half-open interval `[start, end)`:
+By default `Line`, `LineAa`, and `QuadBezier` are drawn on a half-open interval
+`[start, end)`:
 the `start` point is included, but the `end` point is not. This allows one to
 chain multiple lines together without any overdraw. However, one can opt-in to
 the "inclusive" Cargo feature described above.
@@ -175,10 +172,6 @@ was rejected.
   Algorithm"](http://homepages.enterprise.net/murphy/thickline/index.html),
   *IBM Technical Disclosure Bulletin*, 20(12):5358–5366, 1978.
   <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `ThickLine` `ThickLineAa`; `murphy::ThickLineFill`
-- A. E. Kaufman and E. Shimony, ["3D scan-conversion algorithms for voxel-based
-  graphics"](https://doi.org/10.1145/319120.319126), *Proceedings of the 1986
-  Workshop on Interactive 3D Graphics*, 45–75, 1986.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/kaufman-shimony-1986-3d-scan-conversion.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `Line3d`
 - A. Zingl, ["A Rasterizing Algorithm for Drawing
   Curves"](https://zingl.github.io/Bresenham.pdf), Technikum Wien, 2012.
   <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `QuadBezier` `QuadBezierAa` `ThickLineFill` `ThickLineFillAa`

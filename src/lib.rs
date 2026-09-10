@@ -30,8 +30,6 @@ mod fill;
 mod inclusive;
 #[cfg(feature = "line")]
 mod line;
-#[cfg(feature = "line3d")]
-mod line3d;
 #[cfg(all(feature = "aa", feature = "line"))]
 mod line_aa;
 #[cfg(feature = "murphy")]
@@ -78,9 +76,6 @@ pub use inclusive::Inclusive;
 #[cfg(feature = "line")]
 #[cfg_attr(docsrs, doc(cfg(feature = "line")))]
 pub use line::{Bresenham, Line};
-#[cfg(feature = "line3d")]
-#[cfg_attr(docsrs, doc(cfg(feature = "line3d")))]
-pub use line3d::Line3d;
 #[cfg(all(feature = "aa", feature = "line"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "line"))))]
 pub use line_aa::LineAa;
@@ -119,8 +114,3 @@ pub type Point = (isize, isize);
 ///
 /// `255` is fully on; `0` is fully off.
 pub type PointAa = (Point, u8);
-
-/// Convenient typedef for three machine-sized integers
-#[cfg(feature = "line3d")]
-#[cfg_attr(docsrs, doc(cfg(feature = "line3d")))]
-pub type Point3d = (isize, isize, isize);

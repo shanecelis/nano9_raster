@@ -18,15 +18,13 @@ default-members = ["."]
 default = ["line"]
 ## 2D line (`Line`; alias `Bresenham`)
 line = []
-## 3D line (`Line3d`)
-line3d = []
 ## Midpoint circle (`Circle`)
 circle = []
 ## Axis-aligned ellipses (`Ellipse`)
 ellipse = []
 ## Filled scanlines (`fill::Span`, `fill::Plot`, `fill::Fill`, `Spanner`)
 fill = ["dep:arraydeque"]
-## Inclusive `[start, end]` adapter for `Line`, `Line3d`, `LineAa`, and `QuadBezier`
+## Inclusive `[start, end]` adapter for `Line`, `LineAa`, and `QuadBezier`
 inclusive = []
 ## Quadratic Bézier (`QuadBezier`); implies `line`
 bezier = ["line", "dep:libm"]
@@ -56,11 +54,6 @@ criterion = "0.5"
 name = "line"
 harness = false
 required-features = ["inclusive"]
-
-[[bench]]
-name = "line3d"
-harness = false
-required-features = ["inclusive", "line3d"]
 
 [[bench]]
 name = "shape_compare"
