@@ -1,6 +1,8 @@
 //! Quadratic Bézier curves from Alois Zingl's `plotQuadBezier`.
 
 use crate::line::Line;
+#[cfg(feature = "inclusive")]
+use crate::Inclusive;
 use crate::Point;
 
 enum SegState {
@@ -24,6 +26,7 @@ struct QuadBezierSeg {
     dy: f64,
     err: f64,
     state: SegState,
+    inclusive: bool,
 }
 
 impl QuadBezierSeg {
@@ -34,6 +37,7 @@ impl QuadBezierSeg {
         y1: isize,
         mut x2: isize,
         mut y2: isize,
+        inclusive: bool,
     ) -> Self {
         let mut sx = x2 - x1;
         let mut sy = y2 - y1;
@@ -88,6 +92,7 @@ impl QuadBezierSeg {
                 dy,
                 err,
                 state: SegState::Curve,
+                inclusive,
             };
         }
 
@@ -105,6 +110,7 @@ impl QuadBezierSeg {
             dy: 0.0,
             err: 0.0,
             state: SegState::Line(Line::new((x0, y0), (x2, y2))),
+            inclusive,
         }
     }
 }
@@ -120,14 +126,14 @@ impl Iterator for QuadBezierSeg {
                 None => {
                     let end = (self.x2, self.y2);
                     self.state = SegState::Done;
-                    Some(end)
+                    self.inclusive.then_some(end)
                 }
             },
             SegState::Curve => {
                 let p = (self.x0, self.y0);
                 if self.x0 == self.x2 && self.y0 == self.y2 {
                     self.state = SegState::Done;
-                    return Some(p);
+                    return self.inclusive.then_some(p);
                 }
 
                 let step_y = 2.0 * self.err < self.dx;
@@ -159,7 +165,8 @@ impl Iterator for QuadBezierSeg {
 /// Any control-point configuration is accepted; the curve is split at gradient
 /// sign changes the same way as Zingl's `plotQuadBezier`.
 ///
-/// Inclusive: `[p0, p2]`
+/// Interval: Half-open. Yields pixels along the curve excluding the last pixel of
+/// the walk. [`Inclusive`] restores that pixel.
 pub struct QuadBezier {
     segs: [QuadBezierSeg; 3],
     n: u8,
@@ -168,7 +175,8 @@ pub struct QuadBezier {
 }
 
 impl QuadBezier {
-    /// Inclusive pixels of the quadratic Bézier (`[p0, p2]`).
+    /// Half-open pixels of the quadratic Bézier (excludes the last pixel of the
+    /// walk). Interior split joints are kept so adjacent segments do not gap.
     pub fn new(p0: Point, p1: Point, p2: Point) -> Self {
         let (specs, n) = segments(p0.0, p0.1, p1.0, p1.1, p2.0, p2.1);
         QuadBezier {
@@ -180,6 +188,7 @@ impl QuadBezier {
                     specs[0].1 .1,
                     specs[0].2 .0,
                     specs[0].2 .1,
+                    n > 1,
                 ),
                 QuadBezierSeg::new(
                     specs[1].0 .0,
@@ -188,6 +197,7 @@ impl QuadBezier {
                     specs[1].1 .1,
                     specs[1].2 .0,
                     specs[1].2 .1,
+                    n > 2,
                 ),
                 QuadBezierSeg::new(
                     specs[2].0 .0,
@@ -196,12 +206,26 @@ impl QuadBezier {
                     specs[2].1 .1,
                     specs[2].2 .0,
                     specs[2].2 .1,
+                    false,
                 ),
             ],
             n: n as u8,
             i: 0,
             last: None,
         }
+    }
+}
+
+#[cfg(feature = "inclusive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "inclusive")))]
+impl Inclusive for QuadBezier {
+    type Item = Point;
+
+    fn inclusive(mut self) -> impl Iterator<Item = Point> {
+        for i in 0..self.n {
+            self.segs[i as usize].inclusive = true;
+        }
+        self
     }
 }
 
@@ -301,12 +325,33 @@ mod tests {
     #[test]
     fn test_quad_bezier() {
         let res: Vec<_> = QuadBezier::new((0, 0), (2, 0), (4, 0)).collect();
-        assert_eq!(res, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
+        assert_eq!(res, [(0, 0), (1, 0), (2, 0), (3, 0)]);
 
         let res: Vec<_> = QuadBezier::new((0, 0), (2, 4), (4, 0)).collect();
-        assert_eq!(res, [(0, 0), (1, 1), (2, 2), (4, 0), (3, 1), (2, 2)]);
+        assert_eq!(res, [(0, 0), (1, 1), (2, 2), (4, 0), (3, 1)]);
 
         let res: Vec<_> = QuadBezier::new((0, 0), (1, 3), (4, 3)).collect();
+        assert_eq!(res, [(0, 0), (0, 1), (1, 2), (2, 3), (3, 3)]);
+    }
+
+    #[cfg(feature = "inclusive")]
+    #[test]
+    fn test_inclusive_quad_bezier() {
+        use crate::Inclusive;
+
+        let res: Vec<_> = QuadBezier::new((0, 0), (2, 0), (4, 0))
+            .inclusive()
+            .collect();
+        assert_eq!(res, [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]);
+
+        let res: Vec<_> = QuadBezier::new((0, 0), (2, 4), (4, 0))
+            .inclusive()
+            .collect();
+        assert_eq!(res, [(0, 0), (1, 1), (2, 2), (4, 0), (3, 1), (2, 2)]);
+
+        let res: Vec<_> = QuadBezier::new((0, 0), (1, 3), (4, 3))
+            .inclusive()
+            .collect();
         assert_eq!(res, [(0, 0), (0, 1), (1, 2), (2, 3), (3, 3), (4, 3)]);
     }
 }
