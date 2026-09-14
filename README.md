@@ -1,17 +1,22 @@
 # nano9_raster
 <img align="right" width="256" height="192" alt="demo" src="https://shanecelis.github.io/nano9_raster/demo.gif" />
 
-Iterator-based
-[Bresenham](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm)'s line,
-circle, and more drawing algorithms.
+Iterator-based rasterization algorithms for drawing lines, ellipses, and more
+with anti-aliasing and fill options.
 
-Bresenham's line drawing algorithm is a fast algorithm to draw a line between
-two points, without any overdraw. This crate implements the fast integer
-variant, using an iterator-based approach for flexibility. Most, if not all,
-overhead should evaporate when inlined by the compiler. It calculates
-coordinates without knowing anything about drawing methods or surfaces.
+The main beneficiary of this crate is
+[Nano-9](https://github.com/shanecelis/nano9) which provides a
+[Pico-8](https://www.lexaloffle.com/pico-8.php) compatibility layer to the
+[Bevy](https://bevy.org) game engine. This crate was initially forked from the
+[bresenham](https://github.com/mbr/bresenham-rs) crate, but its emphasis on
+fast, integer-based algorithms remains:
 
-
+> [Bresenham](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm)'s line
+drawing algorithm is a fast algorithm to draw a line between two points, without
+any overdraw. This crate implements the fast integer variant, using an
+iterator-based approach for flexibility. Most, if not all, overhead should
+evaporate when inlined by the compiler. It calculates coordinates without
+knowing anything about drawing methods or surfaces.
 
 ## Example
 
