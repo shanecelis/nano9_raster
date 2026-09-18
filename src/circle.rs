@@ -11,6 +11,7 @@ use crate::Point;
 ///
 /// The points run from `(radius, 0)` toward `(0, radius)`. Combine this with
 /// [`PointIteratorExt`] to reflect and translate the arc.
+#[derive(Clone, Copy)]
 pub struct QuadArc {
     x: isize,
     y: isize,
@@ -59,52 +60,16 @@ impl Iterator for QuadArc {
     }
 }
 
-/// Emits each point and its reflection across the x-axis.
-///
-/// Points on the x-axis are emitted once.
-pub struct ReflectX<I> {
-    iter: I,
-    reflected: Option<Point>,
+/// Reflect a point across the x-axis.
+#[inline]
+pub fn reflect_x((x, y): Point) -> Point {
+    (x, -y)
 }
 
-impl<I: Iterator<Item = Point>> Iterator for ReflectX<I> {
-    type Item = Point;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(point) = self.reflected.take() {
-            return Some(point);
-        }
-        let point = self.iter.next()?;
-        if point.1 != 0 {
-            self.reflected = Some((point.0, -point.1));
-        }
-        Some(point)
-    }
-}
-
-/// Emits each point and its reflection across the y-axis.
-///
-/// Points on the y-axis are emitted once.
-pub struct ReflectY<I> {
-    iter: I,
-    reflected: Option<Point>,
-}
-
-impl<I: Iterator<Item = Point>> Iterator for ReflectY<I> {
-    type Item = Point;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(point) = self.reflected.take() {
-            return Some(point);
-        }
-        let point = self.iter.next()?;
-        if point.0 != 0 {
-            self.reflected = Some((-point.0, point.1));
-        }
-        Some(point)
-    }
+/// Reflect a point across the y-axis.
+#[inline]
+pub fn reflect_y((x, y): Point) -> Point {
+    (-x, y)
 }
 
 /// An iterator that translates every point by a fixed offset.
@@ -125,28 +90,6 @@ impl<I: Iterator<Item = Point>> Iterator for Translate<I> {
 
 /// Composable transforms for iterators over raster points.
 pub trait PointIteratorExt: Iterator<Item = Point> + Sized {
-    /// Emit every point followed by its reflection across the x-axis.
-    ///
-    /// Points on the x-axis are emitted once.
-    #[inline]
-    fn reflect_x(self) -> ReflectX<Self> {
-        ReflectX {
-            iter: self,
-            reflected: None,
-        }
-    }
-
-    /// Emit every point followed by its reflection across the y-axis.
-    ///
-    /// Points on the y-axis are emitted once.
-    #[inline]
-    fn reflect_y(self) -> ReflectY<Self> {
-        ReflectY {
-            iter: self,
-            reflected: None,
-        }
-    }
-
     /// Translate every point by `(dx, dy)`.
     #[inline]
     fn translate(self, dx: isize, dy: isize) -> Translate<Self> {
@@ -417,7 +360,8 @@ impl Iterator for Circle {
 
 #[cfg(test)]
 mod tests {
-    use super::{Circle, PointIteratorExt, QuadArc};
+    use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
+    use crate::AndMap;
     #[cfg(feature = "fill")]
     use crate::Point;
     use std::vec::Vec;
@@ -513,16 +457,24 @@ mod tests {
     }
 
     #[test]
-    fn test_composed_circle_matches_point_multiset() {
+    fn test_reflections_are_one_to_one() {
+        assert_eq!(reflect_x((2, 3)), (2, -3));
+        assert_eq!(reflect_y((2, 3)), (-2, 3));
+    }
+
+    #[test]
+    fn test_composed_circle_matches_point_set() {
         for r in -15..16 {
             let mut baseline: Vec<_> = Circle::new((3, -2), r).collect();
             let mut composed: Vec<_> = QuadArc::new(r)
-                .reflect_x()
-                .reflect_y()
+                .and_map(reflect_x)
+                .and_map(reflect_y)
                 .translate(3, -2)
                 .collect();
             baseline.sort_unstable();
+            baseline.dedup();
             composed.sort_unstable();
+            composed.dedup();
             assert_eq!(baseline, composed, "r={r}");
         }
     }

@@ -6,7 +6,7 @@
 extern crate std;
 
 mod and_map;
-pub(crate) use and_map::AndMap;
+pub use and_map::AndMap;
 
 #[cfg(feature = "bezier")]
 mod bezier;
@@ -57,7 +57,7 @@ mod thick_line_fill_aa;
 pub use bezier::QuadBezier;
 #[cfg(feature = "circle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "circle")))]
-pub use circle::{Circle, PointIteratorExt, QuadArc, ReflectX, ReflectY, Translate};
+pub use circle::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc, Translate};
 #[cfg(all(feature = "aa", feature = "circle"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "circle"))))]
 pub use circle_aa::CircleAa;

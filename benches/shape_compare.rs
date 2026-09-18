@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nano9_raster::{
-    Circle, CircleAa, Ellipse, EllipseAa, Fill, Plot, Point, PointAa, PointIteratorExt, QuadArc,
-    RoundRect, RoundRect2, Span,
+    reflect_x, reflect_y, AndMap, Circle, CircleAa, Ellipse, EllipseAa, Fill, Plot, Point, PointAa,
+    PointIteratorExt, QuadArc, RoundRect, RoundRect2, Span,
 };
 
 #[inline]
@@ -126,8 +126,8 @@ fn circle_decomposition(c: &mut Criterion) {
             b.iter(|| {
                 consume_points(
                     QuadArc::new(black_box(r))
-                        .reflect_x()
-                        .reflect_y()
+                        .and_map(reflect_x)
+                        .and_map(reflect_y)
                         .translate(13, -7),
                 )
             })

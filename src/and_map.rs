@@ -1,7 +1,9 @@
 //! Emit each item and its image: `x, f(x), x, f(x), …`.
 
 /// Iterator extension: interleave each item with `f(item)`.
-pub(crate) trait AndMap: Iterator + Sized {
+pub trait AndMap: Iterator + Sized {
+    /// Emit each item followed by its image under `f`.
+    #[inline]
     fn and_map<F>(self, mut f: F) -> impl Iterator<Item = Self::Item>
     where
         Self::Item: Copy,
