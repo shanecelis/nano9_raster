@@ -87,7 +87,7 @@ pub use murphy::ThickLineFill;
 pub use quad_bezier_aa::QuadBezierAa;
 #[cfg(feature = "round-rect")]
 #[cfg_attr(docsrs, doc(cfg(feature = "round-rect")))]
-pub use round_rect::RoundRect;
+pub use round_rect::{RoundRect, RoundRect2};
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "round-rect"))))]
 pub use round_rect_aa::RoundRectAa;

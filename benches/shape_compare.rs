@@ -4,7 +4,7 @@ use std::time::Duration;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nano9_raster::{
     Circle, CircleAa, Ellipse, EllipseAa, Fill, Plot, Point, PointAa, PointIteratorExt, QuadArc,
-    Span,
+    RoundRect, RoundRect2, Span,
 };
 
 #[inline]
@@ -136,11 +136,45 @@ fn circle_decomposition(c: &mut Criterion) {
     group.finish();
 }
 
+fn round_rect_decomposition(c: &mut Criterion) {
+    let mut group = c.benchmark_group("round_rect_decomposition");
+    for &(width, height, radius) in &[(32isize, 24isize, 4isize), (128, 96, 16), (512, 384, 64)] {
+        let dimensions = format!("{width}x{height}/r{radius}");
+        group.bench_with_input(
+            BenchmarkId::new("baseline", &dimensions),
+            &(width, height, radius),
+            |b, &(w, h, r)| {
+                b.iter(|| {
+                    consume_points(RoundRect::new(
+                        (13, -7),
+                        (13 + black_box(w) - 1, -7 + black_box(h) - 1),
+                        black_box(r),
+                    ))
+                })
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("quad_arc", &dimensions),
+            &(width, height, radius),
+            |b, &(w, h, r)| {
+                b.iter(|| {
+                    consume_points(RoundRect2::new(
+                        (13, -7),
+                        (13 + black_box(w) - 1, -7 + black_box(h) - 1),
+                        black_box(r),
+                    ))
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default()
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2));
-    targets = shape_compare, ellipse_reflection, circle_decomposition
+    targets = shape_compare, ellipse_reflection, circle_decomposition, round_rect_decomposition
 }
 criterion_main!(benches);
