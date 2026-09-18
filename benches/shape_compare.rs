@@ -2,7 +2,10 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use nano9_raster::{Circle, CircleAa, Ellipse, EllipseAa, Fill, Plot, Point, PointAa, Span};
+use nano9_raster::{
+    Circle, CircleAa, Ellipse, EllipseAa, Fill, Plot, Point, PointAa, PointIteratorExt, QuadArc,
+    Span,
+};
 
 #[inline]
 fn mix(acc: usize, x: isize, y: isize, alpha: u8) -> usize {
@@ -113,11 +116,31 @@ fn ellipse_reflection(c: &mut Criterion) {
     group.finish();
 }
 
+fn circle_decomposition(c: &mut Criterion) {
+    let mut group = c.benchmark_group("circle_decomposition");
+    for radius in [8isize, 32, 128] {
+        group.bench_with_input(BenchmarkId::new("baseline", radius), &radius, |b, &r| {
+            b.iter(|| consume_points(Circle::new((13, -7), black_box(r))))
+        });
+        group.bench_with_input(BenchmarkId::new("composed", radius), &radius, |b, &r| {
+            b.iter(|| {
+                consume_points(
+                    QuadArc::new(black_box(r))
+                        .reflect_x()
+                        .reflect_y()
+                        .translate(13, -7),
+                )
+            })
+        });
+    }
+    group.finish();
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default()
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2));
-    targets = shape_compare, ellipse_reflection
+    targets = shape_compare, ellipse_reflection, circle_decomposition
 }
 criterion_main!(benches);

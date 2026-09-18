@@ -7,6 +7,155 @@ use arraydeque::ArrayDeque;
 use crate::fill::{Fill, Span};
 use crate::Point;
 
+/// Iterator over one quarter of a circle centered at the origin.
+///
+/// The points run from `(radius, 0)` toward `(0, radius)`. Combine this with
+/// [`PointIteratorExt`] to reflect and translate the arc.
+pub struct QuadArc {
+    x: isize,
+    y: isize,
+    err: isize,
+}
+
+impl QuadArc {
+    /// Quarter-arc with the given radius.
+    ///
+    /// Negative radii are treated as their absolute value.
+    #[inline]
+    pub fn new(radius: isize) -> Self {
+        let r = radius.abs();
+        QuadArc {
+            x: r,
+            y: 0,
+            err: 2 - 2 * r,
+        }
+    }
+
+    #[inline]
+    fn advance(&mut self) {
+        let r = self.err;
+        if r <= self.y {
+            self.y += 1;
+            self.err += self.y * 2 + 1;
+        }
+        if r > -self.x || self.err > self.y {
+            self.x -= 1;
+            self.err += 1 - self.x * 2;
+        }
+    }
+}
+
+impl Iterator for QuadArc {
+    type Item = Point;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.x < 0 {
+            return None;
+        }
+        let point = (self.x, self.y);
+        self.advance();
+        Some(point)
+    }
+}
+
+/// Emits each point and its reflection across the x-axis.
+///
+/// Points on the x-axis are emitted once.
+pub struct ReflectX<I> {
+    iter: I,
+    reflected: Option<Point>,
+}
+
+impl<I: Iterator<Item = Point>> Iterator for ReflectX<I> {
+    type Item = Point;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(point) = self.reflected.take() {
+            return Some(point);
+        }
+        let point = self.iter.next()?;
+        if point.1 != 0 {
+            self.reflected = Some((point.0, -point.1));
+        }
+        Some(point)
+    }
+}
+
+/// Emits each point and its reflection across the y-axis.
+///
+/// Points on the y-axis are emitted once.
+pub struct ReflectY<I> {
+    iter: I,
+    reflected: Option<Point>,
+}
+
+impl<I: Iterator<Item = Point>> Iterator for ReflectY<I> {
+    type Item = Point;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(point) = self.reflected.take() {
+            return Some(point);
+        }
+        let point = self.iter.next()?;
+        if point.0 != 0 {
+            self.reflected = Some((-point.0, point.1));
+        }
+        Some(point)
+    }
+}
+
+/// An iterator that translates every point by a fixed offset.
+pub struct Translate<I> {
+    iter: I,
+    dx: isize,
+    dy: isize,
+}
+
+impl<I: Iterator<Item = Point>> Iterator for Translate<I> {
+    type Item = Point;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|(x, y)| (x + self.dx, y + self.dy))
+    }
+}
+
+/// Composable transforms for iterators over raster points.
+pub trait PointIteratorExt: Iterator<Item = Point> + Sized {
+    /// Emit every point followed by its reflection across the x-axis.
+    ///
+    /// Points on the x-axis are emitted once.
+    #[inline]
+    fn reflect_x(self) -> ReflectX<Self> {
+        ReflectX {
+            iter: self,
+            reflected: None,
+        }
+    }
+
+    /// Emit every point followed by its reflection across the y-axis.
+    ///
+    /// Points on the y-axis are emitted once.
+    #[inline]
+    fn reflect_y(self) -> ReflectY<Self> {
+        ReflectY {
+            iter: self,
+            reflected: None,
+        }
+    }
+
+    /// Translate every point by `(dx, dy)`.
+    #[inline]
+    fn translate(self, dx: isize, dy: isize) -> Translate<Self> {
+        Translate { iter: self, dx, dy }
+    }
+}
+
+impl<I: Iterator<Item = Point>> PointIteratorExt for I {}
+
 /// Iterator over the pixels of a circle
 pub struct Circle {
     xm: isize,
@@ -268,7 +417,7 @@ impl Iterator for Circle {
 
 #[cfg(test)]
 mod tests {
-    use super::Circle;
+    use super::{Circle, PointIteratorExt, QuadArc};
     #[cfg(feature = "fill")]
     use crate::Point;
     use std::vec::Vec;
@@ -360,6 +509,21 @@ mod tests {
             let mut b = Vec::new();
             Circle::new((3, -2), r).for_each(|p| b.push(p));
             assert_eq!(a, b, "r={r}");
+        }
+    }
+
+    #[test]
+    fn test_composed_circle_matches_point_multiset() {
+        for r in -15..16 {
+            let mut baseline: Vec<_> = Circle::new((3, -2), r).collect();
+            let mut composed: Vec<_> = QuadArc::new(r)
+                .reflect_x()
+                .reflect_y()
+                .translate(3, -2)
+                .collect();
+            baseline.sort_unstable();
+            composed.sort_unstable();
+            assert_eq!(baseline, composed, "r={r}");
         }
     }
 
