@@ -205,6 +205,67 @@ impl Fill for Circle {
     }
 }
 
+/// Iterator over filled-circle scanlines built from a [`QuadArc`].
+#[cfg(feature = "fill")]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "circle", feature = "fill"))))]
+pub struct CircleFill2 {
+    xm: isize,
+    ym: isize,
+    arc: QuadArc,
+    last_y: Option<isize>,
+    pending: Option<Span>,
+}
+
+#[cfg(feature = "fill")]
+impl CircleFill2 {
+    /// Filled circle centered at `center` with the given radius.
+    #[inline]
+    pub fn new(center: Point, radius: isize) -> Self {
+        CircleFill2 {
+            xm: center.0,
+            ym: center.1,
+            arc: QuadArc::new(radius),
+            last_y: None,
+            pending: None,
+        }
+    }
+
+    #[inline]
+    fn span(&self, x: isize, y: isize) -> Span {
+        Span {
+            x0: self.xm - x,
+            x1: self.xm + x,
+            y: self.ym + y,
+        }
+    }
+}
+
+#[cfg(feature = "fill")]
+impl Iterator for CircleFill2 {
+    type Item = Span;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(span) = self.pending.take() {
+            return Some(span);
+        }
+
+        loop {
+            let (x, y) = self.arc.next()?;
+            if self.last_y == Some(y) {
+                continue;
+            }
+            self.last_y = Some(y);
+
+            let span = self.span(x, y);
+            if y != 0 {
+                self.pending = Some(self.span(x, reflect_x((x, y)).1));
+            }
+            return Some(span);
+        }
+    }
+}
+
 /// Iterator over [`Span`] chords of a filled [`Circle`]. Inclusive `[x0, x1]`.
 #[cfg(feature = "fill")]
 pub(crate) struct CircleFill {
@@ -360,6 +421,8 @@ impl Iterator for Circle {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "fill")]
+    use super::CircleFill2;
     use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
     use crate::AndMap;
     #[cfg(feature = "fill")]
@@ -548,6 +611,20 @@ mod tests {
                     "outline {p:?} not in fill r={r} {spans:?}"
                 );
             }
+        }
+    }
+
+    #[cfg(feature = "fill")]
+    #[test]
+    fn test_circle_fill2_matches_circle_fill() {
+        use crate::fill::Fill;
+
+        for r in -32..33 {
+            let mut baseline: Vec<_> = Circle::new((3, -2), r).fill().collect();
+            let mut decomposed: Vec<_> = CircleFill2::new((3, -2), r).collect();
+            baseline.sort_unstable_by_key(|h| (h.y, h.x0, h.x1));
+            decomposed.sort_unstable_by_key(|h| (h.y, h.x0, h.x1));
+            assert_eq!(baseline, decomposed, "r={r}");
         }
     }
 }
