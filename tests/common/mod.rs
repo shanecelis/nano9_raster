@@ -1,4 +1,4 @@
-//! Packed one-bit grid assertions for integration tests.
+//! Packed one-bit grids for tests.
 //!
 //! Rows are integers with MSB = x = 0, matching the `0b001…` goldens. Width is
 //! explicit so leading empty columns stay visible.
@@ -7,6 +7,38 @@ use std::fmt::Write;
 use std::format;
 use std::string::{String, ToString};
 use std::vec::Vec;
+
+/// Pack points into `H` rows of `width` bits, MSB = x = 0.
+#[track_caller]
+pub fn plot_bits<const H: usize>(
+    points: impl IntoIterator<Item = (isize, isize)>,
+    width: u32,
+) -> [u32; H] {
+    let mut grid = [0u32; H];
+    for (x, y) in points {
+        assert!(
+            (0..width as isize).contains(&x) && (0..H as isize).contains(&y),
+            "({x},{y}) off {width}x{H}"
+        );
+        grid[y as usize] |= 1 << (width - 1 - x as u32);
+    }
+    grid
+}
+
+/// Pack inclusive `[x0, x1]` spans on row `y`, MSB = x = 0.
+#[track_caller]
+pub fn plot_spans<const H: usize>(
+    spans: impl IntoIterator<Item = (isize, isize, isize)>,
+    width: u32,
+) -> [u32; H] {
+    plot_bits(
+        spans.into_iter().flat_map(|(x0, x1, y)| {
+            assert!(x0 <= x1, "x0={x0} > x1={x1} y={y}");
+            (x0..=x1).map(move |x| (x, y))
+        }),
+        width,
+    )
+}
 
 /// Compare packed bitmap rows and panic with an overlay on mismatch.
 ///

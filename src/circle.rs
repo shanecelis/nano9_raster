@@ -178,21 +178,11 @@ mod tests {
     #[cfg(feature = "fill")]
     use super::CircleFill;
     use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
-    use crate::common::assert_bitmap_eq;
+    #[cfg(feature = "fill")]
+    use crate::common::plot_spans;
+    use crate::common::{assert_bitmap_eq, plot_bits};
     use crate::{AndMap, Point};
     use std::vec::Vec;
-
-    fn plot_bits<const H: usize>(points: impl Iterator<Item = Point>, w: u32) -> [u32; H] {
-        let mut grid = [0u32; H];
-        for (x, y) in points {
-            assert!(
-                (0..w as isize).contains(&x) && (0..H as isize).contains(&y),
-                "({x},{y}) off {w}x{H}"
-            );
-            grid[y as usize] |= 1 << (w - 1 - x as u32);
-        }
-        grid
-    }
 
     #[test]
     fn test_circle() {
@@ -238,16 +228,8 @@ mod tests {
     /// byte, most significant bit is the leftmost column.
     #[test]
     fn test_circle_shape() {
-        let mut grid = [0u8; 8];
-        for (x, y) in Circle::new((3, 3), 3) {
-            assert!(
-                (0..8).contains(&x) && (0..8).contains(&y),
-                "({x},{y}) off grid"
-            );
-            grid[y as usize] |= 0x80 >> x;
-        }
         #[rustfmt::skip]
-        assert_eq!(grid, [
+        assert_bitmap_eq!(plot_bits::<8>(Circle::new((3, 3), 3), 8), [
             0b00111000,
             0b01000100,
             0b10000010,
@@ -256,7 +238,7 @@ mod tests {
             0b01000100,
             0b00111000,
             0b00000000,
-        ]);
+        ], 8);
     }
 
     #[test]
@@ -308,27 +290,21 @@ mod tests {
     #[cfg(feature = "fill")]
     #[test]
     fn test_circle_fill_shape() {
-        let mut grid = [0u8; 8];
-        for h in CircleFill::new((3, 3), 3) {
-            assert!(
-                (0..8).contains(&h.y) && h.x0 >= 0 && h.x1 < 8,
-                "{h:?} off grid"
-            );
-            for x in h.x0..=h.x1 {
-                grid[h.y as usize] |= 0x80 >> x;
-            }
-        }
         #[rustfmt::skip]
-        assert_eq!(grid, [
-            0b00111000,
-            0b01111100,
-            0b11111110,
-            0b11111110,
-            0b11111110,
-            0b01111100,
-            0b00111000,
-            0b00000000,
-        ]);
+        assert_bitmap_eq!(
+            plot_spans::<8>(CircleFill::new((3, 3), 3).map(|h| (h.x0, h.x1, h.y)), 8),
+            [
+                0b00111000,
+                0b01111100,
+                0b11111110,
+                0b11111110,
+                0b11111110,
+                0b01111100,
+                0b00111000,
+                0b00000000,
+            ],
+            8
+        );
     }
 
     #[cfg(feature = "fill")]

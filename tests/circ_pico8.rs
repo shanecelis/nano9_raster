@@ -12,20 +12,10 @@
 //! by reflection.
 
 mod common;
-use common::assert_bitmap_eq;
-use nano9_raster::{Circle, Point, QuadArc};
-
-fn plot_bits<const H: usize>(points: impl Iterator<Item = Point>, w: u32) -> [u32; H] {
-    let mut grid = [0u32; H];
-    for (x, y) in points {
-        assert!(
-            (0..w as isize).contains(&x) && (0..H as isize).contains(&y),
-            "({x},{y}) off {w}x{H}"
-        );
-        grid[y as usize] |= 1 << (w - 1 - x as u32);
-    }
-    grid
-}
+#[cfg(feature = "fill")]
+use common::plot_spans;
+use common::{assert_bitmap_eq, plot_bits};
+use nano9_raster::{Circle, QuadArc};
 
 /// Pico-8 `circ(4, 4, 4)` on a 9×9 canvas.
 #[test]
@@ -76,20 +66,15 @@ fn pico_quad_r4() {
 
 #[cfg(feature = "fill")]
 mod fill {
-    use super::assert_bitmap_eq;
-    use super::plot_bits;
+    use super::{assert_bitmap_eq, plot_spans};
     use nano9_raster::{CircleFill, QuadArc, Span};
-
-    fn plot_fill<const H: usize>(spans: impl Iterator<Item = Span>, w: u32) -> [u32; H] {
-        plot_bits::<H>(spans.flat_map(|h| (h.x0..=h.x1).map(move |x| (x, h.y))), w)
-    }
 
     /// Pico-8 `circfill(4, 4, 4)` on a 9×9 canvas. Rows `dy = 3` are fat
     /// (`.#######.`) compared with 8-way Zingl fill.
     #[test]
     fn pico_circfill_r4() {
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<9>(CircleFill::new((4, 4), 4), 9), [
+        assert_bitmap_eq!(plot_spans::<9>(CircleFill::new((4, 4), 4).map(|h| (h.x0, h.x1, h.y)), 9), [
             0b000111000, // ...###...
             0b011111110, // .#######.
             0b011111110, // .#######.
@@ -117,7 +102,7 @@ mod fill {
             Some(Span { x0: 0, x1: x, y })
         });
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<5>(spans, 5), [
+        assert_bitmap_eq!(plot_spans::<5>(spans.map(|h| (h.x0, h.x1, h.y)), 5), [
             0b11111, // #####
             0b11111, // #####
             0b11110, // ####.

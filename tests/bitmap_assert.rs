@@ -1,9 +1,15 @@
 mod common;
-use common::assert_bitmap_eq;
+use common::{assert_bitmap_eq, plot_bits, plot_spans};
 
 #[test]
 fn equal_grids_pass() {
     assert_bitmap_eq!([0b1010u8, 0b0101], [0b1010u8, 0b0101], 4);
+}
+
+#[test]
+fn plot_bits_packs_msb_left() {
+    assert_eq!(plot_bits::<2>([(0, 0), (2, 1)], 3), [0b100, 0b001]);
+    assert_eq!(plot_spans::<1>([(1, 3, 0)], 5), [0b01110]);
 }
 
 #[test]
