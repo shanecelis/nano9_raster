@@ -36,7 +36,7 @@ impl QuadArc {
             self.y += 1;
             self.err += self.y * 2 + 1;
         }
-        if r > -self.x || self.err > self.y {
+        if r > -self.x {
             self.x -= 1;
             self.err += 1 - self.x * 2;
         }
