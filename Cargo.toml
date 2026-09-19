@@ -36,7 +36,7 @@ thick-line = ["dep:libm"]
 murphy = ["line"]
 ## Scanline thick line (`celis::ThickLine`, `celis::ThickLineFill`; `celis::ThickLineAa` with `aa`)
 celis = ["line", "inclusive", "fill"]
-## Rounded rectangle outline (`RoundRect`, `RoundRect2`, `RoundRectAa` with `aa`; `.fill()` with `fill`)
+## Rounded rectangle outline (`RoundRect`, `RoundRectAa` with `aa`; `.fill()` with `fill`)
 round-rect = ["circle"]
 
 [package.metadata.docs.rs]

@@ -4,7 +4,7 @@ use std::time::Duration;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nano9_raster::{
     reflect_x, reflect_y, AndMap, Circle, CircleAa, CircleFill, Ellipse, EllipseAa, Fill, Plot,
-    Point, PointAa, PointIteratorExt, QuadArc, RoundRect, RoundRect2, Span,
+    Point, PointAa, PointIteratorExt, QuadArc, RoundRect, Span,
 };
 
 #[inline]
@@ -154,24 +154,11 @@ fn round_rect_decomposition(c: &mut Criterion) {
     for &(width, height, radius) in &[(32isize, 24isize, 4isize), (128, 96, 16), (512, 384, 64)] {
         let dimensions = format!("{width}x{height}/r{radius}");
         group.bench_with_input(
-            BenchmarkId::new("baseline", &dimensions),
-            &(width, height, radius),
-            |b, &(w, h, r)| {
-                b.iter(|| {
-                    consume_points(RoundRect::new(
-                        (13, -7),
-                        (13 + black_box(w) - 1, -7 + black_box(h) - 1),
-                        black_box(r),
-                    ))
-                })
-            },
-        );
-        group.bench_with_input(
             BenchmarkId::new("quad_arc", &dimensions),
             &(width, height, radius),
             |b, &(w, h, r)| {
                 b.iter(|| {
-                    consume_points(RoundRect2::new(
+                    consume_points(RoundRect::new(
                         (13, -7),
                         (13 + black_box(w) - 1, -7 + black_box(h) - 1),
                         black_box(r),

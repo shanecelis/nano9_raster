@@ -8,6 +8,7 @@
 use crate::fill::{Fill, Span};
 use crate::{Point, QuadArc};
 
+#[cfg(any(feature = "fill", feature = "aa"))]
 fn isqrt(n: u64) -> u64 {
     if n < 2 {
         return n;
@@ -37,20 +38,16 @@ pub(crate) fn normalize_rect(
     (x0, y0, x1, y1, r)
 }
 
-/// Inclusive rounded rectangle outline
+/// Inclusive rounded rectangle outline built from four [`QuadArc`] corners.
 pub struct RoundRect {
     x0: isize,
     y0: isize,
     x1: isize,
     y1: isize,
     r: isize,
-    y: isize,
-    x: isize,
-    lx: isize,
-    rx: isize,
-    prev: Option<(isize, isize)>,
-    next: Option<(isize, isize)>,
-    done: bool,
+    arc: QuadArc,
+    phase: u8,
+    pos: isize,
 }
 
 impl RoundRect {
@@ -58,26 +55,29 @@ impl RoundRect {
     ///
     /// Negative radii are treated as their absolute value. The radius is
     /// clamped to `(min(width, height) − 2) / 2`.
+    #[inline]
     pub fn new(p0: Point, p1: Point, r: isize) -> Self {
         let (x0, y0, x1, y1, r) = normalize_rect(p0, p1, r);
-        let mut rr = RoundRect {
+        let (phase, pos) = if x0 == x1 {
+            (9, y0)
+        } else if y0 == y1 {
+            (8, x0)
+        } else {
+            (0, 0)
+        };
+        RoundRect {
             x0,
             y0,
             x1,
             y1,
             r,
-            y: y0,
-            x: x0,
-            lx: x0,
-            rx: x1,
-            prev: None,
-            next: None,
-            done: false,
-        };
-        rr.enter_row(y0);
-        rr
+            arc: QuadArc::new(r),
+            phase,
+            pos,
+        }
     }
 
+    #[cfg(feature = "aa")]
     pub(crate) fn row_span(&self, y: isize) -> Option<(isize, isize)> {
         if y < self.y0 || y > self.y1 {
             return None;
@@ -94,96 +94,6 @@ impl RoundRect {
         let rem = (self.r as u64) * (self.r as u64) - dy * dy;
         let dx = isqrt(rem) as isize;
         Some((self.x0 + self.r - dx, self.x1 - self.r + dx))
-    }
-
-    fn enter_row(&mut self, y: isize) {
-        match self.row_span(y) {
-            Some((lx, rx)) => {
-                self.y = y;
-                self.lx = lx;
-                self.rx = rx;
-                self.x = lx;
-                self.prev = self.row_span(y - 1);
-                self.next = self.row_span(y + 1);
-            }
-            None => self.done = true,
-        }
-    }
-
-    fn is_row_outline(&self, x: isize) -> bool {
-        if x == self.lx || x == self.rx {
-            return true;
-        }
-        match self.prev {
-            None => return true,
-            Some((pl, pr)) if x < pl || x > pr => return true,
-            _ => {}
-        }
-        match self.next {
-            None => true,
-            Some((nl, nr)) => x < nl || x > nr,
-        }
-    }
-}
-
-impl Iterator for RoundRect {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        while !self.done {
-            if self.x <= self.rx {
-                let x = self.x;
-                self.x += 1;
-                if self.is_row_outline(x) {
-                    return Some((x, self.y));
-                }
-            } else if self.y < self.y1 {
-                self.enter_row(self.y + 1);
-            } else {
-                self.done = true;
-            }
-        }
-        None
-    }
-}
-
-/// Inclusive rounded rectangle outline built from four [`QuadArc`] corners.
-pub struct RoundRect2 {
-    x0: isize,
-    y0: isize,
-    x1: isize,
-    y1: isize,
-    r: isize,
-    arc: QuadArc,
-    phase: u8,
-    pos: isize,
-}
-
-impl RoundRect2 {
-    /// Inclusive rounded rect with opposite corners `p0` and `p1`.
-    ///
-    /// Negative radii are treated as their absolute value. The radius is
-    /// clamped to `(min(width, height) − 2) / 2`.
-    #[inline]
-    pub fn new(p0: Point, p1: Point, r: isize) -> Self {
-        let (x0, y0, x1, y1, r) = normalize_rect(p0, p1, r);
-        let (phase, pos) = if x0 == x1 {
-            (9, y0)
-        } else if y0 == y1 {
-            (8, x0)
-        } else {
-            (0, 0)
-        };
-        RoundRect2 {
-            x0,
-            y0,
-            x1,
-            y1,
-            r,
-            arc: QuadArc::new(r),
-            phase,
-            pos,
-        }
     }
 
     #[inline]
@@ -213,7 +123,7 @@ impl RoundRect2 {
     }
 }
 
-impl Iterator for RoundRect2 {
+impl Iterator for RoundRect {
     type Item = Point;
 
     #[inline]
@@ -270,9 +180,12 @@ impl Iterator for RoundRect2 {
 
 #[cfg(feature = "fill")]
 struct RoundRectFill {
+    x0: isize,
+    y0: isize,
     y: isize,
+    x1: isize,
     y1: isize,
-    geom: RoundRect,
+    r: isize,
 }
 
 #[cfg(feature = "fill")]
@@ -280,10 +193,32 @@ struct RoundRectFill {
 impl Fill for RoundRect {
     fn fill(self) -> impl Iterator<Item = Span> {
         RoundRectFill {
+            x0: self.x0,
+            y0: self.y0,
             y: self.y0,
+            x1: self.x1,
             y1: self.y1,
-            geom: self,
+            r: self.r,
         }
+    }
+}
+
+#[cfg(feature = "fill")]
+impl RoundRectFill {
+    #[inline]
+    fn row_span(&self, y: isize) -> (isize, isize) {
+        if self.r == 0 || (y >= self.y0 + self.r && y <= self.y1 - self.r) {
+            return (self.x0, self.x1);
+        }
+        let cy = if y < self.y0 + self.r {
+            self.y0 + self.r
+        } else {
+            self.y1 - self.r
+        };
+        let dy = (y - cy).unsigned_abs() as u64;
+        let rem = (self.r as u64) * (self.r as u64) - dy * dy;
+        let dx = isqrt(rem) as isize;
+        (self.x0 + self.r - dx, self.x1 - self.r + dx)
     }
 }
 
@@ -292,20 +227,19 @@ impl Iterator for RoundRectFill {
     type Item = Span;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.y <= self.y1 {
-            let y = self.y;
-            self.y += 1;
-            if let Some((x0, x1)) = self.geom.row_span(y) {
-                return Some(Span { x0, x1, y });
-            }
+        if self.y > self.y1 {
+            return None;
         }
-        None
+        let y = self.y;
+        let (x0, x1) = self.row_span(y);
+        self.y += 1;
+        Some(Span { x0, x1, y })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RoundRect, RoundRect2};
+    use super::RoundRect;
     use crate::QuadArc;
     use std::vec::Vec;
 
@@ -324,21 +258,21 @@ mod tests {
     }
 
     #[test]
-    fn round_rect2_negative_radius_and_reversed_corners_match() {
-        let expected: Vec<_> = RoundRect2::new((0, 0), (12, 8), 3).collect();
+    fn negative_radius_and_reversed_corners_match() {
+        let expected: Vec<_> = RoundRect::new((0, 0), (12, 8), 3).collect();
         assert_eq!(
             expected,
-            RoundRect2::new((12, 8), (0, 0), 3).collect::<Vec<_>>()
+            RoundRect::new((12, 8), (0, 0), 3).collect::<Vec<_>>()
         );
         assert_eq!(
             expected,
-            RoundRect2::new((0, 0), (12, 8), -3).collect::<Vec<_>>()
+            RoundRect::new((0, 0), (12, 8), -3).collect::<Vec<_>>()
         );
     }
 
     #[test]
-    fn round_rect2_handles_sharp_and_degenerate_rects() {
-        let mut sharp: Vec<_> = RoundRect2::new((0, 0), (3, 2), 0).collect();
+    fn handles_sharp_and_degenerate_rects() {
+        let mut sharp: Vec<_> = RoundRect::new((0, 0), (3, 2), 0).collect();
         sharp.sort_unstable();
         assert_eq!(
             sharp,
@@ -356,19 +290,19 @@ mod tests {
             ]
         );
         assert_eq!(
-            RoundRect2::new((2, 1), (2, 4), 2).collect::<Vec<_>>(),
+            RoundRect::new((2, 1), (2, 4), 2).collect::<Vec<_>>(),
             [(2, 1), (2, 2), (2, 3), (2, 4)]
         );
         assert_eq!(
-            RoundRect2::new((1, 3), (4, 3), 2).collect::<Vec<_>>(),
+            RoundRect::new((1, 3), (4, 3), 2).collect::<Vec<_>>(),
             [(1, 3), (2, 3), (3, 3), (4, 3)]
         );
     }
 
     #[test]
-    fn round_rect2_contains_each_translated_quad_arc() {
+    fn contains_each_translated_quad_arc() {
         let (x0, y0, x1, y1, r) = (2, 3, 18, 13, 4);
-        let points: Vec<_> = RoundRect2::new((x0, y0), (x1, y1), r).collect();
+        let points: Vec<_> = RoundRect::new((x0, y0), (x1, y1), r).collect();
         for (x, y) in QuadArc::new(r) {
             assert!(points.contains(&(x0 + r - x, y0 + r - y)));
             assert!(points.contains(&(x1 - r + x, y0 + r - y)));
@@ -378,11 +312,11 @@ mod tests {
     }
 
     #[test]
-    fn round_rect2_never_repeats_a_pixel() {
+    fn never_repeats_a_pixel() {
         for x1 in 0..16 {
             for y1 in 0..12 {
                 for r in 0..8 {
-                    let mut points: Vec<_> = RoundRect2::new((0, 0), (x1, y1), r).collect();
+                    let mut points: Vec<_> = RoundRect::new((0, 0), (x1, y1), r).collect();
                     let len = points.len();
                     points.sort_unstable();
                     points.dedup();
