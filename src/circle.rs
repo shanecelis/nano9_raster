@@ -178,69 +178,60 @@ mod tests {
     #[cfg(feature = "fill")]
     use super::CircleFill;
     use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
+    use crate::common::assert_bitmap_eq;
     use crate::{AndMap, Point};
     use std::vec::Vec;
 
-    fn assert_point_set(actual: impl Iterator<Item = Point>, expected: &[Point]) {
-        let mut actual: Vec<_> = actual.collect();
-        actual.sort_unstable();
-        actual.dedup();
-        let mut expected = expected.to_vec();
-        expected.sort_unstable();
-        expected.dedup();
-        assert_eq!(actual, expected);
+    fn plot_bits<const H: usize>(points: impl Iterator<Item = Point>, w: u32) -> [u32; H] {
+        let mut grid = [0u32; H];
+        for (x, y) in points {
+            assert!(
+                (0..w as isize).contains(&x) && (0..H as isize).contains(&y),
+                "({x},{y}) off {w}x{H}"
+            );
+            grid[y as usize] |= 1 << (w - 1 - x as u32);
+        }
+        grid
     }
 
     #[test]
     fn test_circle() {
-        assert_point_set(Circle::new((0, 0), 0), &[(0, 0)]);
-        assert_point_set(Circle::new((0, 0), 1), &[(1, 0), (0, 1), (-1, 0), (0, -1)]);
-        assert_point_set(
-            Circle::new((5, 5), 2),
-            &[
-                (7, 5),
-                (5, 7),
-                (3, 5),
-                (5, 3),
-                (7, 6),
-                (4, 7),
-                (3, 4),
-                (6, 3),
-                (6, 7),
-                (3, 6),
-                (4, 3),
-                (7, 4),
-            ],
-        );
-        assert_point_set(
-            Circle::new((0, 0), 4),
-            &[
-                (4, 0),
-                (0, 4),
-                (-4, 0),
-                (0, -4),
-                (4, 1),
-                (-1, 4),
-                (-4, -1),
-                (1, -4),
-                (3, 2),
-                (-2, 3),
-                (-3, -2),
-                (2, -3),
-                (2, 3),
-                (-3, 2),
-                (-2, -3),
-                (3, -2),
-                (3, 3),
-                (-3, 3),
-                (-3, -3),
-                (3, -3),
-                (1, 4),
-                (-4, 1),
-                (-1, -4),
-                (4, -1),
-            ],
-        );
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<1>(Circle::new((0, 0), 0), 1), [
+            0b1, // #
+        ], 1);
+
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<3>(Circle::new((1, 1), 1), 3), [
+            0b010, // .#.
+            0b101, // #.#
+            0b010, // .#.
+        ], 3);
+
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<8>(Circle::new((5, 5), 2), 8), [
+            0b00000000, // ........
+            0b00000000, // ........
+            0b00000000, // ........
+            0b00001110, // ....###.
+            0b00010001, // ...#...#
+            0b00010001, // ...#...#
+            0b00010001, // ...#...#
+            0b00001110, // ....###.
+        ], 8);
+
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<9>(Circle::new((4, 4), 4), 9), [
+            0b000111000, // ...###...
+            0b011000110, // .##...##.
+            0b010000010, // .#.....#.
+            0b100000001, // #.......#
+            0b100000001, // #.......#
+            0b100000001, // #.......#
+            0b010000010, // .#.....#.
+            0b011000110, // .##...##.
+            0b000111000, // ...###...
+        ], 9);
     }
 
     /// The `r = 3` circle rendered onto an 8x8 one-bit grid: one row per

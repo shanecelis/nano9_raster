@@ -4,6 +4,9 @@
 //! explicit so leading empty columns stay visible.
 
 use std::fmt::Write;
+use std::format;
+use std::string::{String, ToString};
+use std::vec::Vec;
 
 /// Compare packed bitmap rows and panic with an overlay on mismatch.
 ///

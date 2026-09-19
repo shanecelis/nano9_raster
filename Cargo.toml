@@ -15,7 +15,7 @@ members = ["demo", "demo/record"]
 default-members = ["."]
 
 [features]
-default = ["line"]
+default = ["line", "circle", "ellipse", "fill", "round-rect"]
 ## 2D line (`Line`; alias `Bresenham`)
 line = []
 ## Midpoint circle (`Circle`)

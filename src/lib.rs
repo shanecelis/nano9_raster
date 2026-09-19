@@ -5,6 +5,10 @@
 #[cfg(test)]
 extern crate std;
 
+#[cfg(test)]
+#[path = "../tests/common/mod.rs"]
+mod common;
+
 mod and_map;
 pub use and_map::AndMap;
 
