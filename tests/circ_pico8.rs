@@ -11,6 +11,8 @@
 //! The [`QuadArc`] tests isolate the first quadrant; the other three follow
 //! by reflection.
 
+mod common;
+use common::assert_bitmap_eq;
 use nano9_raster::{Circle, Point, QuadArc};
 
 fn plot_bits<const H: usize>(points: impl Iterator<Item = Point>, w: u32) -> [u32; H] {
@@ -29,7 +31,7 @@ fn plot_bits<const H: usize>(points: impl Iterator<Item = Point>, w: u32) -> [u3
 #[test]
 fn pico_circ_r4() {
     #[rustfmt::skip]
-    assert_eq!(plot_bits::<9>(Circle::new((4, 4), 4), 9), [
+    assert_bitmap_eq!(plot_bits::<9>(Circle::new((4, 4), 4), 9), [
         0b000111000, // ...###...
         0b011000110, // .##...##.
         0b010000010, // .#.....#.
@@ -39,20 +41,20 @@ fn pico_circ_r4() {
         0b010000010, // .#.....#.
         0b011000110, // .##...##.
         0b000111000, // ...###...
-    ]);
+    ], 9);
 }
 
 /// Pico-8 first quadrant of `circ(4, 4, 4)`, origin-centered on a 5×5.
 #[test]
 fn pico_quad_r4() {
     #[rustfmt::skip]
-    assert_eq!(plot_bits::<5>(QuadArc::new(4), 5), [
+    assert_bitmap_eq!(plot_bits::<5>(QuadArc::new(4), 5), [
         0b00001, // ....#
         0b00001, // ....#
         0b00010, // ...#.
         0b00110, // ..##.
         0b11000, // ##...
-    ]);
+    ], 5);
 }
 
 // /// How it looks currently.
@@ -74,6 +76,7 @@ fn pico_quad_r4() {
 
 #[cfg(feature = "fill")]
 mod fill {
+    use super::assert_bitmap_eq;
     use super::plot_bits;
     use nano9_raster::{CircleFill, QuadArc, Span};
 
@@ -86,7 +89,7 @@ mod fill {
     #[test]
     fn pico_circfill_r4() {
         #[rustfmt::skip]
-        assert_eq!(plot_fill::<9>(CircleFill::new((4, 4), 4), 9), [
+        assert_bitmap_eq!(plot_fill::<9>(CircleFill::new((4, 4), 4), 9), [
             0b000111000, // ...###...
             0b011111110, // .#######.
             0b011111110, // .#######.
@@ -96,7 +99,7 @@ mod fill {
             0b011111110, // .#######.
             0b011111110, // .#######.
             0b000111000, // ...###...
-        ]);
+        ], 9);
     }
 
     /// Pico-8 first-quadrant fill of `circfill(4, 4, 4)`.
@@ -114,12 +117,12 @@ mod fill {
             Some(Span { x0: 0, x1: x, y })
         });
         #[rustfmt::skip]
-        assert_eq!(plot_fill::<5>(spans, 5), [
+        assert_bitmap_eq!(plot_fill::<5>(spans, 5), [
             0b11111, // #####
             0b11111, // #####
             0b11110, // ####.
             0b11110, // ####.
             0b11000, // ##...
-        ]);
+        ], 5);
     }
 }
