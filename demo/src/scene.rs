@@ -1,8 +1,8 @@
 //! Shared autoplay scene used by the WASM demo and the GIF recorder.
 
 use nano9_raster::{
-    Circle, CircleAa, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point, QuadBezier,
-    QuadBezierAa, RoundRect, RoundRectAa,
+    Circle, CircleAa, CircleFill, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point,
+    QuadBezier, QuadBezierAa, RoundRect, RoundRectAa,
 };
 
 #[cfg(feature = "celis")]
@@ -221,8 +221,7 @@ impl Scene {
             Kind::Circle if self.anti_alias => CircleAa::new(start, Self::radius(start, end))
                 .filter(|(_, c)| *c > 0)
                 .collect(),
-            Kind::Circle if self.fill => Circle::new(start, Self::radius(start, end))
-                .fill()
+            Kind::Circle if self.fill => CircleFill::new(start, Self::radius(start, end))
                 .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
                 .collect(),
             Kind::Circle => Circle::new(start, Self::radius(start, end))
@@ -528,7 +527,7 @@ impl Scene {
 
         let fill_color = if self.kind.supports_fill() { 255 } else { 0x55 };
         if self.fill {
-            let spans: Vec<_> = Circle::new((18, 3), 2).fill().collect();
+            let spans: Vec<_> = CircleFill::new((18, 3), 2).collect();
             for span in spans {
                 for x in span.x0..=span.x1 {
                     self.plot((x, span.y), fill_color, fill_color, fill_color);

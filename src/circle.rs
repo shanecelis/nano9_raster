@@ -1,11 +1,8 @@
 //! Midpoint circle from Alois Zingl's `plotCircle`.
 
 #[cfg(feature = "fill")]
-use arraydeque::ArrayDeque;
-
-#[cfg(feature = "fill")]
-use crate::fill::{Fill, Span};
-use crate::Point;
+use crate::fill::Span;
+use crate::{AndMap, Point};
 
 /// Iterator over one quarter of a circle centered at the origin.
 ///
@@ -99,116 +96,26 @@ pub trait PointIteratorExt: Iterator<Item = Point> + Sized {
 
 impl<I: Iterator<Item = Point>> PointIteratorExt for I {}
 
-/// Iterator over the pixels of a circle
-pub struct Circle {
-    xm: isize,
-    ym: isize,
-    x: isize,
-    y: isize,
-    err: isize,
-    quad: u8,
-    done: bool,
-}
+/// Circle outline iterator factory.
+pub struct Circle;
 
 impl Circle {
     /// Closed circle centered at `center` with the given `radius`.
     ///
-    /// A radius of `0` yields the center point once. Negative radii are treated
-    /// as their absolute value.
+    /// Negative radii are treated as their absolute value.
     #[inline]
-    pub fn new(center: Point, radius: isize) -> Self {
-        let r = radius.abs();
-        if r == 0 {
-            return Circle {
-                xm: center.0,
-                ym: center.1,
-                x: 0,
-                y: 0,
-                err: 0,
-                quad: 4,
-                done: false,
-            };
-        }
-
-        Circle {
-            xm: center.0,
-            ym: center.1,
-            x: -r,
-            y: 0,
-            err: 2 - 2 * r,
-            quad: 0,
-            done: false,
-        }
-    }
-
-    #[inline]
-    fn points4(&self) -> [Point; 4] {
-        [
-            (self.xm - self.x, self.ym + self.y),
-            (self.xm - self.y, self.ym - self.x),
-            (self.xm + self.x, self.ym - self.y),
-            (self.xm + self.y, self.ym + self.x),
-        ]
-    }
-
-    #[inline]
-    fn advance(&mut self) {
-        let r = self.err;
-        if r <= self.y {
-            self.y += 1;
-            self.err += self.y * 2 + 1;
-        }
-        if r > self.x || self.err > self.y {
-            self.x += 1;
-            self.err += self.x * 2 + 1;
-        }
-        if self.x >= 0 {
-            self.done = true;
-        }
-    }
-
-    /// Call `f` with every outline pixel. Faster than the iterator when the
-    /// body can be inlined (four plots per step, no per-pixel `next`).
-    #[inline]
-    pub fn for_each<F: FnMut(Point)>(mut self, mut f: F) {
-        if self.quad == 4 {
-            f((self.xm, self.ym));
-            return;
-        }
-        while !self.done {
-            let pts = self.points4();
-            f(pts[0]);
-            f(pts[1]);
-            f(pts[2]);
-            f(pts[3]);
-            self.advance();
-        }
-    }
-}
-
-#[cfg(feature = "fill")]
-#[cfg_attr(docsrs, doc(cfg(feature = "fill")))]
-impl Fill for Circle {
-    #[inline]
-    fn fill(self) -> impl Iterator<Item = Span> {
-        CircleFill {
-            c: self,
-            pending: ArrayDeque::new(),
-            last_y: None,
-            last_x: None,
-            open_py: None,
-            open_my: None,
-            open_px: None,
-            open_mx: None,
-            finished: false,
-        }
+    pub fn new(center: Point, radius: isize) -> impl Iterator<Item = Point> {
+        QuadArc::new(radius)
+            .and_map(reflect_x)
+            .and_map(reflect_y)
+            .translate(center.0, center.1)
     }
 }
 
 /// Iterator over filled-circle scanlines built from a [`QuadArc`].
 #[cfg(feature = "fill")]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "circle", feature = "fill"))))]
-pub struct CircleFill2 {
+pub struct CircleFill {
     xm: isize,
     ym: isize,
     arc: QuadArc,
@@ -217,11 +124,11 @@ pub struct CircleFill2 {
 }
 
 #[cfg(feature = "fill")]
-impl CircleFill2 {
+impl CircleFill {
     /// Filled circle centered at `center` with the given radius.
     #[inline]
     pub fn new(center: Point, radius: isize) -> Self {
-        CircleFill2 {
+        CircleFill {
             xm: center.0,
             ym: center.1,
             arc: QuadArc::new(radius),
@@ -241,7 +148,7 @@ impl CircleFill2 {
 }
 
 #[cfg(feature = "fill")]
-impl Iterator for CircleFill2 {
+impl Iterator for CircleFill {
     type Item = Span;
 
     #[inline]
@@ -266,181 +173,31 @@ impl Iterator for CircleFill2 {
     }
 }
 
-/// Iterator over [`Span`] chords of a filled [`Circle`]. Inclusive `[x0, x1]`.
-#[cfg(feature = "fill")]
-pub(crate) struct CircleFill {
-    c: Circle,
-    pending: ArrayDeque<Span, 4>,
-    last_y: Option<isize>,
-    last_x: Option<isize>,
-    open_py: Option<Span>,
-    open_my: Option<Span>,
-    open_px: Option<Span>,
-    open_mx: Option<Span>,
-    finished: bool,
-}
-
-#[cfg(feature = "fill")]
-fn widen(open: &mut Option<Span>, x0: isize, x1: isize, y: isize) {
-    *open = Some(match *open {
-        None => Span { x0, x1, y },
-        Some(h) => Span {
-            x0: h.x0.min(x0),
-            x1: h.x1.max(x1),
-            y,
-        },
-    });
-}
-
-#[cfg(feature = "fill")]
-impl CircleFill {
-    fn push(&mut self, h: Span) {
-        self.pending
-            .push_back(h)
-            .expect("CircleFill pending overflow");
-    }
-
-    fn take_open(&mut self, open: &mut Option<Span>) {
-        if let Some(h) = open.take() {
-            self.push(h);
-        }
-    }
-
-    fn absorb(&mut self) {
-        let xm = self.c.xm;
-        let ym = self.c.ym;
-        let x = self.c.x;
-        let y = self.c.y;
-        if y <= x.abs() {
-            let x0 = xm + x;
-            let x1 = xm - x;
-            widen(&mut self.open_py, x0, x1, ym + y);
-            if y != 0 {
-                widen(&mut self.open_my, x0, x1, ym - y);
-            }
-        }
-        if x.abs() > y {
-            let x0 = xm - y;
-            let x1 = xm + y;
-            widen(&mut self.open_px, x0, x1, ym + x);
-            if x != 0 {
-                widen(&mut self.open_mx, x0, x1, ym - x);
-            }
-        }
-    }
-}
-
-#[cfg(feature = "fill")]
-impl Iterator for CircleFill {
-    type Item = Span;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(h) = self.pending.pop_front() {
-                return Some(h);
-            }
-
-            if self.c.quad == 4 {
-                if self.c.done {
-                    return None;
-                }
-                self.c.done = true;
-                return Some(Span {
-                    x0: self.c.xm,
-                    x1: self.c.xm,
-                    y: self.c.ym,
-                });
-            }
-
-            if self.finished {
-                return None;
-            }
-
-            if self.c.done {
-                let mut py = self.open_py.take();
-                let mut my = self.open_my.take();
-                let mut px = self.open_px.take();
-                let mut mx = self.open_mx.take();
-                self.take_open(&mut py);
-                self.take_open(&mut my);
-                self.take_open(&mut px);
-                self.take_open(&mut mx);
-                self.finished = true;
-                continue;
-            }
-
-            if self.last_y.is_some() && self.last_y != Some(self.c.y) {
-                let mut py = self.open_py.take();
-                let mut my = self.open_my.take();
-                self.take_open(&mut py);
-                self.take_open(&mut my);
-            }
-            if self.last_x.is_some() && self.last_x != Some(self.c.x) {
-                let mut px = self.open_px.take();
-                let mut mx = self.open_mx.take();
-                self.take_open(&mut px);
-                self.take_open(&mut mx);
-            }
-
-            self.absorb();
-            self.last_y = Some(self.c.y);
-            self.last_x = Some(self.c.x);
-            self.c.advance();
-        }
-    }
-}
-
-impl Iterator for Circle {
-    type Item = Point;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-
-        // r == 0: a single center pixel.
-        if self.quad == 4 {
-            self.done = true;
-            return Some((self.xm, self.ym));
-        }
-
-        let p = self.points4()[self.quad as usize];
-
-        if self.quad < 3 {
-            self.quad += 1;
-        } else {
-            self.quad = 0;
-            self.advance();
-        }
-
-        Some(p)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "fill")]
-    use super::CircleFill2;
+    use super::CircleFill;
     use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
-    use crate::AndMap;
-    #[cfg(feature = "fill")]
-    use crate::Point;
+    use crate::{AndMap, Point};
     use std::vec::Vec;
+
+    fn assert_point_set(actual: impl Iterator<Item = Point>, expected: &[Point]) {
+        let mut actual: Vec<_> = actual.collect();
+        actual.sort_unstable();
+        actual.dedup();
+        let mut expected = expected.to_vec();
+        expected.sort_unstable();
+        expected.dedup();
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_circle() {
-        let res: Vec<_> = Circle::new((0, 0), 0).collect();
-        assert_eq!(res, [(0, 0)]);
-
-        let res: Vec<_> = Circle::new((0, 0), 1).collect();
-        assert_eq!(res, [(1, 0), (0, 1), (-1, 0), (0, -1)]);
-
-        let res: Vec<_> = Circle::new((5, 5), 2).collect();
-        assert_eq!(
-            res,
-            [
+        assert_point_set(Circle::new((0, 0), 0), &[(0, 0)]);
+        assert_point_set(Circle::new((0, 0), 1), &[(1, 0), (0, 1), (-1, 0), (0, -1)]);
+        assert_point_set(
+            Circle::new((5, 5), 2),
+            &[
                 (7, 5),
                 (5, 7),
                 (3, 5),
@@ -452,14 +209,12 @@ mod tests {
                 (6, 7),
                 (3, 6),
                 (4, 3),
-                (7, 4)
-            ]
+                (7, 4),
+            ],
         );
-
-        let res: Vec<_> = Circle::new((0, 0), 4).collect();
-        assert_eq!(
-            res,
-            [
+        assert_point_set(
+            Circle::new((0, 0), 4),
+            &[
                 (4, 0),
                 (0, 4),
                 (-4, 0),
@@ -479,8 +234,8 @@ mod tests {
                 (1, 4),
                 (-4, 1),
                 (-1, -4),
-                (4, -1)
-            ]
+                (4, -1),
+            ],
         );
     }
 
@@ -558,10 +313,8 @@ mod tests {
     #[cfg(feature = "fill")]
     #[test]
     fn test_circle_fill_shape() {
-        use crate::fill::Fill;
-
         let mut grid = [0u8; 8];
-        for h in Circle::new((3, 3), 3).fill() {
+        for h in CircleFill::new((3, 3), 3) {
             assert!(
                 (0..8).contains(&h.y) && h.x0 >= 0 && h.x1 < 8,
                 "{h:?} off grid"
@@ -586,13 +339,13 @@ mod tests {
     #[cfg(feature = "fill")]
     #[test]
     fn test_circle_fill() {
-        use crate::fill::{Fill, Span};
+        use crate::fill::Span;
 
-        let res: Vec<_> = Circle::new((0, 0), 0).fill().collect();
+        let res: Vec<_> = CircleFill::new((0, 0), 0).collect();
         assert_eq!(res, [Span { x0: 0, x1: 0, y: 0 }]);
 
         for r in 0..16 {
-            let spans: Vec<_> = Circle::new((3, -2), r).fill().collect();
+            let spans: Vec<_> = CircleFill::new((3, -2), r).collect();
 
             for h in &spans {
                 assert!(h.x0 <= h.x1, "r={r} {h:?}");
@@ -611,20 +364,6 @@ mod tests {
                     "outline {p:?} not in fill r={r} {spans:?}"
                 );
             }
-        }
-    }
-
-    #[cfg(feature = "fill")]
-    #[test]
-    fn test_circle_fill2_matches_circle_fill() {
-        use crate::fill::Fill;
-
-        for r in -32..33 {
-            let mut baseline: Vec<_> = Circle::new((3, -2), r).fill().collect();
-            let mut decomposed: Vec<_> = CircleFill2::new((3, -2), r).collect();
-            baseline.sort_unstable_by_key(|h| (h.y, h.x0, h.x1));
-            decomposed.sort_unstable_by_key(|h| (h.y, h.x0, h.x1));
-            assert_eq!(baseline, decomposed, "r={r}");
         }
     }
 }

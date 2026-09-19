@@ -60,7 +60,7 @@ fn pico_circ_r4() {
 #[cfg(feature = "fill")]
 mod fill {
     use super::plot_bits;
-    use nano9_raster::{Circle, Fill, Span};
+    use nano9_raster::{CircleFill, Span};
 
     fn plot_fill<const H: usize>(spans: impl Iterator<Item = Span>, w: u32) -> [u32; H] {
         plot_bits::<H>(spans.flat_map(|h| (h.x0..=h.x1).map(move |x| (x, h.y))), w)
@@ -71,7 +71,7 @@ mod fill {
     #[test]
     fn pico_circfill_r4() {
         #[rustfmt::skip]
-        assert_eq!(plot_fill::<9>(Circle::new((4, 4), 4).fill(), 9), [
+        assert_eq!(plot_fill::<9>(CircleFill::new((4, 4), 4), 9), [
             0b000111000, // ...###...
             0b011111110, // .#######.
             0b011111110, // .#######.

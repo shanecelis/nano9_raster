@@ -57,7 +57,7 @@ mod thick_line_fill_aa;
 pub use bezier::QuadBezier;
 #[cfg(all(feature = "circle", feature = "fill"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "circle", feature = "fill"))))]
-pub use circle::CircleFill2;
+pub use circle::CircleFill;
 #[cfg(feature = "circle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "circle")))]
 pub use circle::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc, Translate};

@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nano9_raster::{
-    reflect_x, reflect_y, AndMap, Circle, CircleAa, CircleFill2, Ellipse, EllipseAa, Fill, Plot,
+    reflect_x, reflect_y, AndMap, Circle, CircleAa, CircleFill, Ellipse, EllipseAa, Fill, Plot,
     Point, PointAa, PointIteratorExt, QuadArc, RoundRect, RoundRect2, Span,
 };
 
@@ -49,7 +49,7 @@ fn shape_compare(c: &mut Criterion) {
 
         let mut group = c.benchmark_group("fill");
         group.bench_with_input(BenchmarkId::new("circle", radius), &radius, |b, &r| {
-            b.iter(|| consume_spans(Circle::new((0, 0), black_box(r)).fill()))
+            b.iter(|| consume_spans(CircleFill::new((0, 0), black_box(r))))
         });
         group.bench_with_input(BenchmarkId::new("ellipse", radius), &radius, |b, &r| {
             b.iter(|| consume_spans(Ellipse::new((0, 0), black_box(r), black_box(r)).fill()))
@@ -140,10 +140,10 @@ fn circle_fill_decomposition(c: &mut Criterion) {
     let mut group = c.benchmark_group("circle_fill_decomposition");
     for radius in [8isize, 32, 128] {
         group.bench_with_input(BenchmarkId::new("baseline", radius), &radius, |b, &r| {
-            b.iter(|| consume_spans(Circle::new((13, -7), black_box(r)).fill()))
+            b.iter(|| consume_spans(CircleFill::new((13, -7), black_box(r))))
         });
         group.bench_with_input(BenchmarkId::new("quad_arc", radius), &radius, |b, &r| {
-            b.iter(|| consume_spans(CircleFill2::new((13, -7), black_box(r))))
+            b.iter(|| consume_spans(CircleFill::new((13, -7), black_box(r))))
         });
     }
     group.finish();
