@@ -22,6 +22,14 @@ fn mismatch_marks_missing_and_extra() {
         "row 0 should be `-+..` (missing then extra): {msg}"
     );
     assert!(msg.contains("1 | ..#."), "row 1 should stay a match: {msg}");
+    assert!(
+        msg.contains("missing: (0, 0)"),
+        "missing list should name (0, 0): {msg}"
+    );
+    assert!(
+        msg.contains("extra: (1, 0)"),
+        "extra list should name (1, 0): {msg}"
+    );
 }
 
 fn panic_message(err: &Box<dyn std::any::Any + Send>) -> String {

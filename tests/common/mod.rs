@@ -40,6 +40,8 @@ where
 {
     let rows = actual.len().max(expected.len());
     let label = rows.saturating_sub(1).to_string().len().max(1);
+    let mut missing = Vec::new();
+    let mut extra = Vec::new();
     let mut out = String::new();
     for y in 0..rows {
         let act = actual.get(y).copied().map(Into::into).unwrap_or(0);
@@ -52,11 +54,30 @@ where
             out.push(match (e, a) {
                 (true, true) => '#',
                 (false, false) => '.',
-                (true, false) => '-',
-                (false, true) => '+',
+                (true, false) => {
+                    missing.push((x, y as u32));
+                    '-'
+                }
+                (false, true) => {
+                    extra.push((x, y as u32));
+                    '+'
+                }
             });
         }
         out.push('\n');
     }
+    let _ = writeln!(out, "missing: {}", fmt_points(&missing));
+    let _ = write!(out, "extra: {}", fmt_points(&extra));
     out
+}
+
+fn fmt_points(points: &[(u32, u32)]) -> String {
+    if points.is_empty() {
+        return "none".into();
+    }
+    points
+        .iter()
+        .map(|(x, y)| format!("({x}, {y})"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
