@@ -45,7 +45,6 @@ mod quad_bezier_aa;
 mod round_rect;
 #[cfg(all(feature = "aa", feature = "round-rect"))]
 mod round_rect_aa;
-mod round_rect_arc;
 #[cfg(feature = "fill")]
 mod spanner;
 #[cfg(feature = "thick-line")]

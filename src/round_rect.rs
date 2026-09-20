@@ -1,16 +1,17 @@
 //! Axis-aligned rounded rectangle.
 //!
 //! Inclusive corners `[p0, p1]`. A corner radius of `0` is a sharp rectangle.
-//! Larger radii are quarter-disks: a pixel is inside a corner when
-//! `(x − cx)² + (y − cy)² ≤ r²`. The radius is clamped so `2r ≤ min(w, h) − 2`.
+//! Pico-8 offsets each nonzero corner arc by one more pixel than its requested
+//! radius: rrect radius `r` uses a [`QuadArc`] of radius `r + 1`, centered
+//! `r + 1` pixels from the corner. The arc radius is capped at half the short
+//! side when opposite corners meet.
 
 #[cfg(feature = "fill")]
 use crate::fill::{Fill, Span};
 use crate::Point;
 use crate::QuadArc;
-// use crate::round_rect_arc::QuadArc;
 
-#[cfg(any(feature = "fill", feature = "aa"))]
+#[cfg(feature = "aa")]
 fn isqrt(n: u64) -> u64 {
     if n < 2 {
         return n;
@@ -24,9 +25,30 @@ fn isqrt(n: u64) -> u64 {
     x
 }
 
+#[cfg(feature = "aa")]
+fn isqrt_round(n: u64) -> u64 {
+    let x = isqrt(n);
+    if n - x * x > x {
+        x + 1
+    } else {
+        x
+    }
+}
+
 pub(crate) fn clamp_radius(w: isize, h: isize, r: isize) -> isize {
-    let max = (w.min(h) - 2).max(0) / 2;
-    r.abs().min(max)
+    r.abs().min(w.min(h) / 2)
+}
+
+#[inline]
+fn arc_radius(w: isize, h: isize, r: isize) -> isize {
+    if r == 0 {
+        0
+    } else if w == 3 && h == 3 && r == 1 {
+        // Pico-8's smallest maxed rrect is a solid 3×3, unlike circ r=1.
+        0
+    } else {
+        (r + 1).min(w.min(h) / 2)
+    }
 }
 
 pub(crate) fn normalize_rect(
@@ -46,7 +68,8 @@ pub struct RoundRect {
     y0: isize,
     x1: isize,
     y1: isize,
-    r: isize,
+    /// Radius and inset of the actual corner arc.
+    arc_r: isize,
     arc: QuadArc,
     phase: u8,
     pos: isize,
@@ -56,10 +79,11 @@ impl RoundRect {
     /// Inclusive rounded rect with opposite corners `p0` and `p1`.
     ///
     /// Negative radii are treated as their absolute value. The radius is
-    /// clamped to `(min(width, height) − 2) / 2`.
+    /// clamped to `floor(min(width, height) / 2)`.
     #[inline]
     pub fn new(p0: Point, p1: Point, r: isize) -> Self {
         let (x0, y0, x1, y1, r) = normalize_rect(p0, p1, r);
+        let arc_r = arc_radius(x1 - x0 + 1, y1 - y0 + 1, r);
         let (phase, pos) = if x0 == x1 {
             (9, y0)
         } else if y0 == y1 {
@@ -72,8 +96,8 @@ impl RoundRect {
             y0,
             x1,
             y1,
-            r,
-            arc: QuadArc::new(r),
+            arc_r,
+            arc: QuadArc::new(arc_r),
             phase,
             pos,
         }
@@ -84,18 +108,22 @@ impl RoundRect {
         if y < self.y0 || y > self.y1 {
             return None;
         }
-        if self.r == 0 || (y >= self.y0 + self.r && y <= self.y1 - self.r) {
+        if self.arc_r == 0 || (y >= self.y0 + self.arc_r && y <= self.y1 - self.arc_r) {
             return Some((self.x0, self.x1));
         }
-        let cy = if y < self.y0 + self.r {
-            self.y0 + self.r
+        let cy = if y < self.y0 + self.arc_r {
+            self.y0 + self.arc_r
         } else {
-            self.y1 - self.r
+            self.y1 - self.arc_r
         };
         let dy = (y - cy).unsigned_abs() as u64;
-        let rem = (self.r as u64) * (self.r as u64) - dy * dy;
-        let dx = isqrt(rem) as isize;
-        Some((self.x0 + self.r - dx, self.x1 - self.r + dx))
+        let rem = (self.arc_r as u64) * (self.arc_r as u64) - dy * dy;
+        let dx = if dy == self.arc_r as u64 {
+            isqrt(self.arc_r.saturating_sub(1) as u64)
+        } else {
+            isqrt_round(rem)
+        } as isize;
+        Some((self.x0 + self.arc_r - dx, self.x1 - self.arc_r + dx))
     }
 
     #[inline]
@@ -106,9 +134,9 @@ impl RoundRect {
         }
         self.phase += 1;
         match self.phase {
-            1..=3 => self.arc = QuadArc::new(self.r),
-            4 | 5 => self.pos = self.x0 + self.r + 1,
-            6 | 7 => self.pos = self.y0 + self.r + 1,
+            1..=3 => self.arc = QuadArc::new(self.arc_r),
+            4 | 5 => self.pos = self.x0 + self.arc_r + 1,
+            6 | 7 => self.pos = self.y0 + self.arc_r + 1,
             _ => {}
         }
     }
@@ -116,11 +144,24 @@ impl RoundRect {
     #[inline]
     fn corner_point(&self, x: isize, y: isize) -> Point {
         match self.phase {
-            0 => (self.x0 + self.r - x, self.y0 + self.r - y),
-            1 => (self.x1 - self.r + x, self.y0 + self.r - y),
-            2 => (self.x1 - self.r + x, self.y1 - self.r + y),
-            3 => (self.x0 + self.r - x, self.y1 - self.r + y),
+            0 => (self.x0 + self.arc_r - x, self.y0 + self.arc_r - y),
+            1 => (self.x1 - self.arc_r + x, self.y0 + self.arc_r - y),
+            2 => (self.x1 - self.arc_r + x, self.y1 - self.arc_r + y),
+            3 => (self.x0 + self.arc_r - x, self.y1 - self.arc_r + y),
             _ => unreachable!(),
+        }
+    }
+
+    #[inline]
+    fn owns_corner_point(&self, (x, y): Point) -> bool {
+        let mx = (self.x0 + self.x1) / 2;
+        let my = (self.y0 + self.y1) / 2;
+        match self.phase {
+            0 => x <= mx && y <= my,
+            1 => x > mx && y <= my,
+            2 => x > mx && y > my,
+            3 => x <= mx && y > my,
+            _ => false,
         }
     }
 }
@@ -134,12 +175,16 @@ impl Iterator for RoundRect {
             match self.phase {
                 0..=3 => {
                     if let Some((x, y)) = self.arc.next() {
-                        return Some(self.corner_point(x, y));
+                        let point = self.corner_point(x, y);
+                        if self.owns_corner_point(point) {
+                            return Some(point);
+                        }
+                        continue;
                     }
                     self.advance_phase();
                 }
                 4 | 5 => {
-                    let end = self.x1 - self.r - 1;
+                    let end = self.x1 - self.arc_r - 1;
                     if self.pos <= end {
                         let x = self.pos;
                         self.pos += 1;
@@ -149,7 +194,7 @@ impl Iterator for RoundRect {
                     self.advance_phase();
                 }
                 6 | 7 => {
-                    let end = self.y1 - self.r - 1;
+                    let end = self.y1 - self.arc_r - 1;
                     if self.pos <= end {
                         let y = self.pos;
                         self.pos += 1;
@@ -184,10 +229,14 @@ impl Iterator for RoundRect {
 struct RoundRectFill {
     x0: isize,
     y0: isize,
-    y: isize,
     x1: isize,
     y1: isize,
-    r: isize,
+    arc_r: isize,
+    arc: QuadArc,
+    last_arc_y: Option<isize>,
+    pending: Option<Span>,
+    bands_done: bool,
+    middle_y: isize,
 }
 
 #[cfg(feature = "fill")]
@@ -197,10 +246,18 @@ impl Fill for RoundRect {
         RoundRectFill {
             x0: self.x0,
             y0: self.y0,
-            y: self.y0,
             x1: self.x1,
             y1: self.y1,
-            r: self.r,
+            arc_r: self.arc_r,
+            arc: QuadArc::new(self.arc_r),
+            last_arc_y: None,
+            pending: None,
+            bands_done: self.arc_r == 0,
+            middle_y: if self.arc_r == 0 {
+                self.y0
+            } else {
+                self.y0 + self.arc_r + 1
+            },
         }
     }
 }
@@ -208,19 +265,13 @@ impl Fill for RoundRect {
 #[cfg(feature = "fill")]
 impl RoundRectFill {
     #[inline]
-    fn row_span(&self, y: isize) -> (isize, isize) {
-        if self.r == 0 || (y >= self.y0 + self.r && y <= self.y1 - self.r) {
-            return (self.x0, self.x1);
+    fn arc_span(&self, x: isize, y: isize, row: isize) -> Span {
+        debug_assert!(y <= self.arc_r);
+        Span {
+            x0: self.x0 + self.arc_r - x,
+            x1: self.x1 - self.arc_r + x,
+            y: row,
         }
-        let cy = if y < self.y0 + self.r {
-            self.y0 + self.r
-        } else {
-            self.y1 - self.r
-        };
-        let dy = (y - cy).unsigned_abs() as u64;
-        let rem = (self.r as u64) * (self.r as u64) - dy * dy;
-        let dx = isqrt(rem) as isize;
-        (self.x0 + self.r - dx, self.x1 - self.r + dx)
     }
 }
 
@@ -229,20 +280,55 @@ impl Iterator for RoundRectFill {
     type Item = Span;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.y > self.y1 {
+        if let Some(span) = self.pending.take() {
+            return Some(span);
+        }
+
+        if !self.bands_done {
+            let mid_y = (self.y0 + self.y1) / 2;
+            while let Some((x, y)) = self.arc.next() {
+                if self.last_arc_y == Some(y) {
+                    continue;
+                }
+                self.last_arc_y = Some(y);
+
+                let top_y = self.y0 + self.arc_r - y;
+                let bottom_y = self.y1 - self.arc_r + y;
+                let top = (top_y <= mid_y).then(|| self.arc_span(x, y, top_y));
+                let bottom = (bottom_y > mid_y).then(|| self.arc_span(x, y, bottom_y));
+                match (top, bottom) {
+                    (Some(top), Some(bottom)) => {
+                        self.pending = Some(bottom);
+                        return Some(top);
+                    }
+                    (Some(span), None) | (None, Some(span)) => return Some(span),
+                    (None, None) => continue,
+                }
+            }
+            self.bands_done = true;
+        }
+
+        let middle_end = if self.arc_r == 0 {
+            self.y1
+        } else {
+            self.y1 - self.arc_r - 1
+        };
+        if self.middle_y > middle_end {
             return None;
         }
-        let y = self.y;
-        let (x0, x1) = self.row_span(y);
-        self.y += 1;
-        Some(Span { x0, x1, y })
+        let y = self.middle_y;
+        self.middle_y += 1;
+        Some(Span {
+            x0: self.x0,
+            x1: self.x1,
+            y,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::RoundRect;
-    use crate::QuadArc;
     use std::vec::Vec;
 
     #[test]
