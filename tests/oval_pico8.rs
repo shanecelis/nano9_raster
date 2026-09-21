@@ -4,8 +4,8 @@
 //!
 //! Captured from `nano9/tests/golden/oval-small.p8` (`oval-small-expected.png`).
 //! Inclusive corners: `Ellipse::from_rect((x0, y0), (x1, y1))` matches Pico-8
-//! `oval(x0, y0, x1, y1)` / `ovalfill`. Each case is translated so the Pico-8
-//! bounding rect starts at `(0, 0)`.
+//! `oval` / `ovalfill` via `QuadArc` reflected across the box midlines. Each
+//! case is translated so the Pico-8 bounding rect starts at `(0, 0)`.
 //!
 //! Rows are packed MSB = x = 0 via `plot_bits` / `plot_spans`.
 

@@ -1,22 +1,18 @@
-//! Axis-aligned ellipses from Alois Zingl's `plotEllipse` and `plotEllipseRect`.
+//! Axis-aligned ellipses from Alois Zingl's `plotEllipse`.
 //!
-//! [`Ellipse::new`] is a [`QuadArc`] from `(a, 0)` to `(0, b)`, reflected and
-//! translated the same way as the circle outline. Circle keeps its own
-//! single-radius `QuadArc`: folding both into one type would widen the circle
-//! step to `i64` `a²`/`b²` arithmetic.
-
-#[cfg(feature = "fill")]
-use arraydeque::ArrayDeque;
+//! [`QuadArc`] runs `(a, 0) → (0, b)`. [`Ellipse::new`] reflects that arc
+//! across both axes like the circle outline. [`Ellipse::from_rect`] maps the
+//! same arc into the bounding box and reflects across the box midlines, so
+//! even pixel sizes work without Zingl's `plotEllipseRect`.
 
 #[cfg(feature = "fill")]
 use crate::fill::Span;
-use crate::{reflect_x, reflect_y, AndMap, Point, PointIteratorExt};
+use crate::{AndMap, Point};
 
 /// Iterator over one quarter of an axis-aligned ellipse centered at the origin.
 ///
 /// The points run from `(a, 0)` toward `(0, b)`, including the flat-ellipse
-/// tip Zingl plots after the main midpoint loop. Combine this with
-/// [`PointIteratorExt`] to reflect and translate the arc.
+/// tip Zingl plots after the main midpoint loop.
 #[derive(Clone, Copy)]
 pub struct QuadArc {
     x: isize,
@@ -90,26 +86,47 @@ impl Ellipse {
     /// vertical radius `b`. Negative radii are treated as their absolute value.
     #[inline]
     pub fn new(center: Point, a: isize, b: isize) -> impl Iterator<Item = Point> {
-        QuadArc::new(a, b)
-            .and_map(reflect_x)
-            .and_map(reflect_y)
-            .translate(center.0, center.1)
+        let a = a.abs();
+        let b = b.abs();
+        Self::from_rect((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
     }
 
     /// Closed ellipse filling the rectangle with opposite corners `p0` and
     /// `p1`.
+    ///
+    /// A [`QuadArc`] of radii `((x1-x0)/2, (y1-y0)/2)` is placed in the first
+    /// quadrant of the box, then reflected across the horizontal and vertical
+    /// midlines. Odd sizes match [`Self::new`]; even sizes split the center
+    /// across two rows or columns so the outline still touches all four sides.
     #[inline]
     pub fn from_rect(p0: Point, p1: Point) -> impl Iterator<Item = Point> {
-        EllipseRect::new(p0, p1)
+        let (x0, x1, y0, y1, a, b) = sorted_rect(p0, p1);
+        QuadArc::new(a, b)
+            .map(move |(x, y)| (x1 - a + x, y1 - b + y))
+            .and_map(move |(x, y)| (x, y0 + y1 - y))
+            .and_map(move |(x, y)| (x0 + x1 - x, y))
     }
+}
+
+#[inline]
+fn sorted_rect(p0: Point, p1: Point) -> (isize, isize, isize, isize, isize, isize) {
+    let x0 = p0.0.min(p1.0);
+    let x1 = p0.0.max(p1.0);
+    let y0 = p0.1.min(p1.1);
+    let y1 = p0.1.max(p1.1);
+    (x0, x1, y0, y1, (x1 - x0) / 2, (y1 - y0) / 2)
 }
 
 /// Iterator over filled-ellipse scanlines built from a [`QuadArc`].
 #[cfg(feature = "fill")]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "ellipse", feature = "fill"))))]
 pub struct EllipseFill {
-    xm: isize,
-    ym: isize,
+    x0: isize,
+    y0: isize,
+    x1: isize,
+    y1: isize,
+    a: isize,
+    b: isize,
     arc: QuadArc,
     last_y: Option<isize>,
     pending: Option<Span>,
@@ -121,28 +138,35 @@ impl EllipseFill {
     /// vertical radius `b`.
     #[inline]
     pub fn new(center: Point, a: isize, b: isize) -> Self {
+        let a = a.abs();
+        let b = b.abs();
+        Self::from_rect((center.0 - a, center.1 - b), (center.0 + a, center.1 + b))
+    }
+
+    /// Filled ellipse inscribed in the rectangle with opposite corners `p0`
+    /// and `p1`.
+    #[inline]
+    pub fn from_rect(p0: Point, p1: Point) -> Self {
+        let (x0, x1, y0, y1, a, b) = sorted_rect(p0, p1);
         EllipseFill {
-            xm: center.0,
-            ym: center.1,
+            x0,
+            y0,
+            x1,
+            y1,
+            a,
+            b,
             arc: QuadArc::new(a, b),
             last_y: None,
             pending: None,
         }
     }
 
-    /// Filled ellipse inscribed in the rectangle with opposite corners `p0`
-    /// and `p1`.
-    #[inline]
-    pub fn from_rect(p0: Point, p1: Point) -> impl Iterator<Item = Span> {
-        EllipseRect::new(p0, p1).fill()
-    }
-
     #[inline]
     fn span(&self, x: isize, y: isize) -> Span {
         Span {
-            x0: self.xm - x,
-            x1: self.xm + x,
-            y: self.ym + y,
+            x0: self.x0 + self.a - x,
+            x1: self.x1 - self.a + x,
+            y: self.y1 - self.b + y,
         }
     }
 }
@@ -165,280 +189,15 @@ impl Iterator for EllipseFill {
             self.last_y = Some(y);
 
             let span = self.span(x, y);
-            if y != 0 {
-                self.pending = Some(self.span(x, reflect_x((x, y)).1));
+            let y_neg = self.y0 + self.b - y;
+            if y_neg != span.y {
+                self.pending = Some(Span {
+                    x0: span.x0,
+                    x1: span.x1,
+                    y: y_neg,
+                });
             }
             return Some(span);
-        }
-    }
-}
-
-enum EllipsePhase {
-    Main { quad: u8 },
-    Tip { which: u8 },
-}
-
-/// Iterator over an axis-aligned ellipse inscribed in a rectangle.
-struct EllipseRect {
-    x0: isize,
-    y0: isize,
-    x1: isize,
-    y1: isize,
-    a: i64,
-    b: i64,
-    b1: i64,
-    dx: i64,
-    dy: i64,
-    err: i64,
-    phase: EllipsePhase,
-    done: bool,
-}
-
-impl EllipseRect {
-    /// Closed ellipse filling the rectangle with opposite corners `p0` and `p1`.
-    #[inline]
-    fn new(p0: Point, p1: Point) -> Self {
-        let (mut x0, mut y0) = p0;
-        let (mut x1, y1) = p1;
-        let a = (x1 - x0).abs() as i64;
-        let b = (y1 - y0).abs() as i64;
-        let b1 = b & 1;
-        let dx = 4 * (1 - a) * b * b;
-        let dy = 4 * (b1 + 1) * a * a;
-        let err = dx + dy + b1 * a * a;
-
-        if x0 > x1 {
-            x0 = x1;
-            x1 += a as isize;
-        }
-        if y0 > y1 {
-            y0 = y1;
-        }
-        y0 += ((b + 1) / 2) as isize;
-        let y1 = y0 - b1 as isize;
-        let a = 8 * a * a;
-        let b1 = 8 * b * b;
-
-        EllipseRect {
-            x0,
-            y0,
-            x1,
-            y1,
-            a,
-            b,
-            b1,
-            dx,
-            dy,
-            err,
-            phase: EllipsePhase::Main { quad: 0 },
-            done: false,
-        }
-    }
-
-    #[inline]
-    fn points4(&self) -> [Point; 4] {
-        [
-            (self.x1, self.y0),
-            (self.x0, self.y0),
-            (self.x0, self.y1),
-            (self.x1, self.y1),
-        ]
-    }
-
-    #[inline]
-    fn tip4(&self) -> [Point; 4] {
-        [
-            (self.x0 - 1, self.y0),
-            (self.x1 + 1, self.y0),
-            (self.x0 - 1, self.y1),
-            (self.x1 + 1, self.y1),
-        ]
-    }
-
-    #[inline]
-    fn advance_main(&mut self) {
-        let e2 = 2 * self.err;
-        if e2 <= self.dy {
-            self.y0 += 1;
-            self.y1 -= 1;
-            self.dy += self.a;
-            self.err += self.dy;
-        }
-        if e2 >= self.dx || 2 * self.err > self.dy {
-            self.x0 += 1;
-            self.x1 -= 1;
-            self.dx += self.b1;
-            self.err += self.dx;
-        }
-        if self.x0 > self.x1 {
-            self.phase = EllipsePhase::Tip { which: 0 };
-        }
-    }
-}
-
-#[cfg(feature = "fill")]
-impl EllipseRect {
-    #[inline]
-    fn fill(self) -> EllipseRectFill {
-        EllipseRectFill {
-            e: self,
-            pending: ArrayDeque::new(),
-            open0: None,
-            open1: None,
-            finished: false,
-        }
-    }
-}
-
-/// Iterator over [`Span`] chords of a filled [`EllipseRect`]. Inclusive `[x0, x1]`.
-#[cfg(feature = "fill")]
-struct EllipseRectFill {
-    e: EllipseRect,
-    pending: ArrayDeque<Span, 2>,
-    open0: Option<Span>,
-    open1: Option<Span>,
-    finished: bool,
-}
-
-#[cfg(feature = "fill")]
-fn set_track(open: &mut Option<Span>, x0: isize, x1: isize, y: isize) -> Option<Span> {
-    match *open {
-        None => {
-            *open = Some(Span { x0, x1, y });
-            None
-        }
-        Some(h) if h.y == y => {
-            *open = Some(Span {
-                x0: h.x0.min(x0),
-                x1: h.x1.max(x1),
-                y,
-            });
-            None
-        }
-        Some(h) => {
-            *open = Some(Span { x0, x1, y });
-            Some(h)
-        }
-    }
-}
-
-#[cfg(feature = "fill")]
-impl EllipseRectFill {
-    fn push(&mut self, h: Span) {
-        self.pending
-            .push_back(h)
-            .expect("EllipseRectFill pending overflow");
-    }
-
-    fn absorb_y0(&mut self, x0: isize, x1: isize, y: isize) {
-        if let Some(h) = set_track(&mut self.open0, x0, x1, y) {
-            self.push(h);
-        }
-    }
-
-    fn absorb_y1(&mut self, x0: isize, x1: isize, y: isize) {
-        if let Some(h) = set_track(&mut self.open1, x0, x1, y) {
-            self.push(h);
-        }
-    }
-
-    fn flush_opens(&mut self) {
-        if let Some(h) = self.open0.take() {
-            self.push(h);
-        }
-        if let Some(h) = self.open1.take() {
-            self.push(h);
-        }
-    }
-}
-
-#[cfg(feature = "fill")]
-impl Iterator for EllipseRectFill {
-    type Item = Span;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some(h) = self.pending.pop_front() {
-                return Some(h);
-            }
-
-            if self.finished {
-                return None;
-            }
-
-            if let EllipsePhase::Main { .. } = self.e.phase {
-                self.absorb_y0(self.e.x0, self.e.x1, self.e.y0);
-                if self.e.y0 != self.e.y1 {
-                    self.absorb_y1(self.e.x0, self.e.x1, self.e.y1);
-                }
-                self.e.advance_main();
-                continue;
-            }
-
-            if (self.e.y0 - self.e.y1) as i64 <= self.e.b {
-                let x0 = self.e.x0 - 1;
-                let x1 = self.e.x1 + 1;
-                let y0 = self.e.y0;
-                let y1 = self.e.y1;
-                self.absorb_y0(x0, x1, y0);
-                self.e.y0 += 1;
-                if y1 != y0 {
-                    self.absorb_y1(x0, x1, y1);
-                }
-                self.e.y1 -= 1;
-                continue;
-            }
-
-            self.flush_opens();
-            self.finished = true;
-        }
-    }
-}
-
-impl Iterator for EllipseRect {
-    type Item = Point;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-
-        match self.phase {
-            EllipsePhase::Main { quad } => {
-                let p = self.points4()[quad as usize];
-
-                if quad < 3 {
-                    self.phase = EllipsePhase::Main { quad: quad + 1 };
-                } else {
-                    self.phase = EllipsePhase::Main { quad: 0 };
-                    self.advance_main();
-                }
-
-                Some(p)
-            }
-            EllipsePhase::Tip { which } => {
-                // `while (y0 - y1 <= b)` — only test at the start of a 4-pixel group.
-                if which == 0 && (self.y0 - self.y1) as i64 > self.b {
-                    self.done = true;
-                    return None;
-                }
-
-                let p = self.tip4()[which as usize];
-
-                if which < 3 {
-                    if which == 1 {
-                        self.y0 += 1;
-                    }
-                    self.phase = EllipsePhase::Tip { which: which + 1 };
-                } else {
-                    self.y1 -= 1;
-                    self.phase = EllipsePhase::Tip { which: 0 };
-                }
-
-                Some(p)
-            }
         }
     }
 }
@@ -563,36 +322,25 @@ mod tests {
 
     #[test]
     fn test_ellipse_rect() {
-        let res: Vec<_> = Ellipse::from_rect((0, 0), (8, 4)).collect();
-        assert_eq!(
-            res,
-            [
-                (8, 2),
-                (0, 2),
-                (0, 2),
-                (8, 2),
-                (7, 3),
-                (1, 3),
-                (1, 1),
-                (7, 1),
-                (6, 4),
-                (2, 4),
-                (2, 0),
-                (6, 0),
-                (5, 4),
-                (3, 4),
-                (3, 0),
-                (5, 0),
-                (4, 4),
-                (4, 4),
-                (4, 0),
-                (4, 0),
-                (4, 4),
-                (4, 4),
-                (4, 0),
-                (4, 0)
-            ]
-        );
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<5>(Ellipse::from_rect((0, 0), (8, 4)), 9), [
+            0b001111100, // ..#####..
+            0b010000010, // .#.....#.
+            0b100000001, // #.......#
+            0b010000010, // .#.....#.
+            0b001111100, // ..#####..
+        ], 9);
+    }
+
+    #[test]
+    fn test_ellipse_even_rect() {
+        #[rustfmt::skip]
+        assert_bitmap_eq!(plot_bits::<4>(Ellipse::from_rect((0, 0), (7, 3)), 8), [
+            0b01111110, // .######.
+            0b10000001, // #......#
+            0b10000001, // #......#
+            0b01111110, // .######.
+        ], 8);
     }
 
     #[test]
