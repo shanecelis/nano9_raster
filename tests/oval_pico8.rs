@@ -78,7 +78,7 @@ fn pico_oval_23x13() {
 #[cfg(feature = "fill")]
 mod fill {
     use super::{assert_bitmap_eq, plot_spans};
-    use nano9_raster::{Ellipse, Fill, Span};
+    use nano9_raster::{EllipseFill, Span};
 
     fn plot_fill<const H: usize>(spans: impl Iterator<Item = Span>, w: u32) -> [u32; H] {
         plot_spans(spans.map(|h| (h.x0, h.x1, h.y)), w)
@@ -88,7 +88,7 @@ mod fill {
     #[test]
     fn pico_ovalfill_1x1() {
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<1>(Ellipse::from_rect((0, 0), (0, 0)).fill(), 1), [
+        assert_bitmap_eq!(plot_fill::<1>(EllipseFill::from_rect((0, 0), (0, 0)), 1), [
             0b1, // #
         ], 1);
     }
@@ -97,7 +97,7 @@ mod fill {
     #[test]
     fn pico_ovalfill_5x5() {
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<5>(Ellipse::from_rect((0, 0), (4, 4)).fill(), 5), [
+        assert_bitmap_eq!(plot_fill::<5>(EllipseFill::from_rect((0, 0), (4, 4)), 5), [
             0b01110, // .###.
             0b11111, // #####
             0b11111, // #####
@@ -110,7 +110,7 @@ mod fill {
     #[test]
     fn pico_ovalfill_13x9() {
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<9>(Ellipse::from_rect((0, 0), (12, 8)).fill(), 13), [
+        assert_bitmap_eq!(plot_fill::<9>(EllipseFill::from_rect((0, 0), (12, 8)), 13), [
             0b0000111110000, // ....#####....
             0b0011111111100, // ..#########..
             0b0111111111110, // .###########.
@@ -127,7 +127,7 @@ mod fill {
     #[test]
     fn pico_ovalfill_23x13() {
         #[rustfmt::skip]
-        assert_bitmap_eq!(plot_fill::<13>(Ellipse::from_rect((0, 0), (22, 12)).fill(), 23), [
+        assert_bitmap_eq!(plot_fill::<13>(EllipseFill::from_rect((0, 0), (22, 12)), 23), [
             0b00000001111111110000000, // .......#########.......
             0b00001111111111111110000, // ....###############....
             0b00011111111111111111000, // ...#################...

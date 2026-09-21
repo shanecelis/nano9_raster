@@ -10,7 +10,7 @@ extern crate std;
 mod common;
 
 mod and_map;
-pub use and_map::AndMap;
+pub use and_map::{reflect_x, reflect_y, AndMap, PointIteratorExt, Translate};
 
 #[cfg(feature = "bezier")]
 mod bezier;
@@ -25,7 +25,7 @@ mod circle;
 ))]
 mod circle_aa;
 #[cfg(feature = "ellipse")]
-mod ellipse;
+pub mod ellipse;
 #[cfg(all(feature = "aa", feature = "ellipse"))]
 mod ellipse_aa;
 #[cfg(feature = "fill")]
@@ -64,13 +64,16 @@ pub use bezier::QuadBezier;
 pub use circle::CircleFill;
 #[cfg(feature = "circle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "circle")))]
-pub use circle::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc, Translate};
+pub use circle::{Circle, QuadArc};
 #[cfg(all(feature = "aa", feature = "circle"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "circle"))))]
 pub use circle_aa::CircleAa;
 #[cfg(feature = "ellipse")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ellipse")))]
 pub use ellipse::Ellipse;
+#[cfg(all(feature = "ellipse", feature = "fill"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "ellipse", feature = "fill"))))]
+pub use ellipse::EllipseFill;
 #[cfg(all(feature = "aa", feature = "ellipse"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "aa", feature = "ellipse"))))]
 pub use ellipse_aa::EllipseAa;

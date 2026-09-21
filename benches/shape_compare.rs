@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use nano9_raster::{
-    reflect_x, reflect_y, AndMap, Circle, CircleAa, CircleFill, Ellipse, EllipseAa, Fill, Plot,
-    Point, PointAa, PointIteratorExt, QuadArc, RoundRect, Span,
+    reflect_x, reflect_y, AndMap, Circle, CircleAa, CircleFill, Ellipse, EllipseAa, EllipseFill,
+    Fill, Plot, Point, PointAa, PointIteratorExt, QuadArc, RoundRect, Span,
 };
 
 #[inline]
@@ -52,7 +52,7 @@ fn shape_compare(c: &mut Criterion) {
             b.iter(|| consume_spans(CircleFill::new((0, 0), black_box(r))))
         });
         group.bench_with_input(BenchmarkId::new("ellipse", radius), &radius, |b, &r| {
-            b.iter(|| consume_spans(Ellipse::new((0, 0), black_box(r), black_box(r)).fill()))
+            b.iter(|| consume_spans(EllipseFill::new((0, 0), black_box(r), black_box(r))))
         });
         group.finish();
 
@@ -91,8 +91,7 @@ fn ellipse_reflection(c: &mut Criterion) {
             BenchmarkId::new("fill", &dimensions),
             &(a, b),
             |bencher, &(a, b)| {
-                bencher
-                    .iter(|| consume_spans(Ellipse::new((0, 0), black_box(a), black_box(b)).fill()))
+                bencher.iter(|| consume_spans(EllipseFill::new((0, 0), black_box(a), black_box(b))))
             },
         );
         group.bench_with_input(
@@ -136,6 +135,35 @@ fn circle_decomposition(c: &mut Criterion) {
     group.finish();
 }
 
+fn ellipse_decomposition(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ellipse_decomposition");
+    for (a, b) in [(8isize, 4isize), (32, 16), (128, 64)] {
+        let dimensions = format!("{a}x{b}");
+        group.bench_with_input(
+            BenchmarkId::new("baseline", &dimensions),
+            &(a, b),
+            |bencher, &(a, b)| {
+                bencher.iter(|| consume_points(Ellipse::new((13, -7), black_box(a), black_box(b))))
+            },
+        );
+        group.bench_with_input(
+            BenchmarkId::new("composed", &dimensions),
+            &(a, b),
+            |bencher, &(a, b)| {
+                bencher.iter(|| {
+                    consume_points(
+                        nano9_raster::ellipse::QuadArc::new(black_box(a), black_box(b))
+                            .and_map(reflect_x)
+                            .and_map(reflect_y)
+                            .translate(13, -7),
+                    )
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
 fn circle_fill_decomposition(c: &mut Criterion) {
     let mut group = c.benchmark_group("circle_fill_decomposition");
     for radius in [8isize, 32, 128] {
@@ -175,6 +203,6 @@ criterion_group! {
     config = Criterion::default()
         .warm_up_time(Duration::from_millis(500))
         .measurement_time(Duration::from_secs(2));
-    targets = shape_compare, ellipse_reflection, circle_decomposition, circle_fill_decomposition, round_rect_decomposition
+    targets = shape_compare, ellipse_reflection, circle_decomposition, ellipse_decomposition, circle_fill_decomposition, round_rect_decomposition
 }
 criterion_main!(benches);

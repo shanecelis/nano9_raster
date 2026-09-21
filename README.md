@@ -84,9 +84,9 @@ convenient.
 
 ## Fill
 
-The `fill` Cargo feature adds the `Fill` trait on `Circle`, `CircleAa`,
-`Ellipse`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can be
-constructed from a center and radii with `new`, or from opposite
+The `fill` Cargo feature adds `CircleFill` and `EllipseFill`, plus the `Fill`
+trait on `CircleAa`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can
+be constructed from a center and radii with `new`, or from opposite
 bounding-rectangle corners with `from_rect`. The trait is generic on its
 iterator item and defaults to `Span`: one solid inclusive `[x0, x1]` chord per
 distinct row. The AA shapes implement `Fill<Plot>` and mix those spans with

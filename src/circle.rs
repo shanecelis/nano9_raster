@@ -2,7 +2,7 @@
 
 #[cfg(feature = "fill")]
 use crate::fill::Span;
-use crate::{AndMap, Point};
+use crate::{reflect_x, reflect_y, AndMap, Point, PointIteratorExt};
 
 /// Iterator over one quarter of a circle centered at the origin.
 ///
@@ -56,45 +56,6 @@ impl Iterator for QuadArc {
         Some(point)
     }
 }
-
-/// Reflect a point across the x-axis.
-#[inline]
-pub fn reflect_x((x, y): Point) -> Point {
-    (x, -y)
-}
-
-/// Reflect a point across the y-axis.
-#[inline]
-pub fn reflect_y((x, y): Point) -> Point {
-    (-x, y)
-}
-
-/// An iterator that translates every point by a fixed offset.
-pub struct Translate<I> {
-    iter: I,
-    dx: isize,
-    dy: isize,
-}
-
-impl<I: Iterator<Item = Point>> Iterator for Translate<I> {
-    type Item = Point;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|(x, y)| (x + self.dx, y + self.dy))
-    }
-}
-
-/// Composable transforms for iterators over raster points.
-pub trait PointIteratorExt: Iterator<Item = Point> + Sized {
-    /// Translate every point by `(dx, dy)`.
-    #[inline]
-    fn translate(self, dx: isize, dy: isize) -> Translate<Self> {
-        Translate { iter: self, dx, dy }
-    }
-}
-
-impl<I: Iterator<Item = Point>> PointIteratorExt for I {}
 
 /// Circle outline iterator factory.
 pub struct Circle;
@@ -177,11 +138,12 @@ impl Iterator for CircleFill {
 mod tests {
     #[cfg(feature = "fill")]
     use super::CircleFill;
-    use super::{reflect_x, reflect_y, Circle, PointIteratorExt, QuadArc};
+    use super::{Circle, QuadArc};
     #[cfg(feature = "fill")]
     use crate::common::plot_spans;
     use crate::common::{assert_bitmap_eq, plot_bits};
-    use crate::{AndMap, Point};
+    use crate::Point;
+    use crate::{reflect_x, reflect_y, AndMap, PointIteratorExt};
     use std::vec::Vec;
 
     #[test]
@@ -249,12 +211,6 @@ mod tests {
             Circle::new((3, -2), r).for_each(|p| b.push(p));
             assert_eq!(a, b, "r={r}");
         }
-    }
-
-    #[test]
-    fn test_reflections_are_one_to_one() {
-        assert_eq!(reflect_x((2, 3)), (2, -3));
-        assert_eq!(reflect_y((2, 3)), (-2, 3));
     }
 
     #[test]

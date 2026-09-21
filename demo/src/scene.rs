@@ -1,8 +1,8 @@
 //! Shared autoplay scene used by the WASM demo and the GIF recorder.
 
 use nano9_raster::{
-    Circle, CircleAa, CircleFill, Ellipse, EllipseAa, Fill, Inclusive, Line, LineAa, Plot, Point,
-    QuadBezier, QuadBezierAa, RoundRect, RoundRectAa,
+    Circle, CircleAa, CircleFill, Ellipse, EllipseAa, EllipseFill, Fill, Inclusive, Line, LineAa,
+    Plot, Point, QuadBezier, QuadBezierAa, RoundRect, RoundRectAa,
 };
 
 #[cfg(feature = "celis")]
@@ -233,8 +233,7 @@ impl Scene {
             Kind::Ellipse if self.anti_alias => EllipseAa::from_rect(start, end)
                 .filter(|(_, c)| *c > 0)
                 .collect(),
-            Kind::Ellipse if self.fill => Ellipse::from_rect(start, end)
-                .fill()
+            Kind::Ellipse if self.fill => EllipseFill::from_rect(start, end)
                 .flat_map(|h| (h.x0..=h.x1).map(move |x| ((x, h.y), 255)))
                 .collect(),
             Kind::Ellipse => Ellipse::from_rect(start, end).map(|p| (p, 255)).collect(),
