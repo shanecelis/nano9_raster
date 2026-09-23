@@ -1,6 +1,6 @@
 [package]
 name = "nano9_raster"
-version = "0.2.0"
+version = "0.1.0"
 authors = ["Marc Brinkmann <git@marcbrinkmann.de>", "Shane Celis <shane.celis@gmail.com>"]
 license = "MIT"
 edition = "2021"
