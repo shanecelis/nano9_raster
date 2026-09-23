@@ -1,8 +1,9 @@
 # nano9_raster
 <img align="right" width="256" height="192" alt="demo" src="https://shanecelis.github.io/nano9_raster/demo.gif" />
 
-Iterator-based rasterization algorithms for drawing lines, ellipses, and more
-with anti-aliasing and fill options.
+Iterator-based rasterization for lines, circles, ellipses, and more. `no_std`.
+Anti-aliasing and fill are Cargo features; Bézier and thick-line paths pull in
+`libm`.
 
 The main beneficiary of this crate is
 [Nano-9](https://github.com/shanecelis/nano9) which provides a
@@ -39,7 +40,7 @@ for (x, y) in nano9_raster::Line::new((0, 1), (6, 4)) {
 
 Bresenham published algorithms for lines and circles. And a number of other
 shapes were generalized from his work (see references below), which are
-available as optional Cargo features.
+available as Cargo features.
 
 | Demo | Shape            | AA option | fillable | Author               | Feature                               |
 |------|------------------|-----------|----------|----------------------|---------------------------------------|
@@ -48,8 +49,16 @@ available as optional Cargo features.
 | 2    | Ellipse          | X         | X        | Pitteway, Vadillo    | `ellipse`, `aa`, `fill`               |
 | 3    | Quadratic Bézier | X         |          | Zingl                | `bezier`, `aa`                        |
 | 4    | Thick line       | X         | X        | Murphy, Zingl, Celis | `thick-line`, `aa`, `murphy`, `celis` |
-| 5    | Rounded rect     | X         | X        |                      | `round-rect`, `aa`, `fill`            |
+| 5    | Rounded rect     | X         | X        | Zingl                | `round-rect`, `aa`, `fill`            |
 
+Default features: `line`, `circle`, `ellipse`, `fill`, `round-rect`. Opt in for
+`aa`, `bezier`, `thick-line`, `inclusive`, `murphy`, and `celis`.
+
+Aliased circles, ellipses, and rounded-rect corners are a first-quadrant
+`QuadArc` reflected and translated into place. `Ellipse::new` takes a center and
+radii; `Ellipse::from_rect` takes opposite corners of the bounding box. Odd
+pixel sizes match `new` at the integer center. Even sizes split the center so
+the outline still touches all four sides.
 
 ## Demo
 
@@ -85,15 +94,18 @@ convenient.
 ## Fill
 
 The `fill` Cargo feature adds `CircleFill` and `EllipseFill`, plus the `Fill`
-trait on `CircleAa`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. Ellipses can
-be constructed from a center and radii with `new`, or from opposite
-bounding-rectangle corners with `from_rect`. The trait is generic on its
-iterator item and defaults to `Span`: one solid inclusive `[x0, x1]` chord per
-distinct row. The AA shapes implement `Fill<Plot>` and mix those spans with
-`Point`s carrying anti-aliased rim coverage. The circle uses Vadillo's integer
-algorithm; the ellipses extend its squared implicit-function band with the
-ellipse's local gradient. Even-sized rectangle bounds produce exactly the
-corresponding center-and-radii `EllipseAa` result.
+trait on `CircleAa`, `EllipseAa`, `RoundRect`, and `RoundRectAa`. `Circle` and
+`Ellipse` do not implement `Fill`; use the dedicated fill types (or
+`EllipseFill::from_rect`). The trait is generic on its iterator item and
+defaults to `Span`: one solid inclusive `[x0, x1]` chord per distinct row. The
+AA shapes implement `Fill<Plot>` and mix those spans with `Point`s carrying
+anti-aliased rim coverage.
+
+`CircleFill` and `EllipseFill` are scanlines from the same `QuadArc` walk as the
+outline. Anti-aliased circle fill uses Vadillo's integer algorithm; anti-aliased
+ellipse fill extends its squared implicit-function band with the ellipse's local
+gradient. Odd-sized rectangle bounds produce exactly the corresponding
+center-and-radii `EllipseAa` result.
 
 ## Inclusive
 
@@ -179,7 +191,7 @@ was rejected.
   <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/murphy-1978-thickline.pdf" target="_blank" rel="noopener noreferrer">PDF</a> `ThickLine` `ThickLineAa`; `murphy::ThickLineFill`
 - A. Zingl, ["A Rasterizing Algorithm for Drawing
   Curves"](https://zingl.github.io/Bresenham.pdf), Technikum Wien, 2012.
-  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `QuadBezier` `QuadBezierAa` `ThickLineFill` `ThickLineFillAa`
+  <a href="https://cdn.jsdelivr.net/gh/shanecelis/nano9_raster@main/doc/papers/zingl-2012-rasterizing-curves.pdf" target="_blank" rel="noopener noreferrer">PDF</a> [Site](http://members.chello.at/easyfilter/bresenham.html) [Code](http://members.chello.at/easyfilter/bresenham.c) `Circle` `Ellipse` `RoundRect` `QuadBezier` `QuadBezierAa` `ThickLineFill` `ThickLineFillAa` `LineAa`
 - B. Fu and L. Niu, ["Integral Algorithm for Generating Anti-Aliasing Circle
   Based on Bresenham Algorithm"](https://doi.org/10.4028/www.scientific.net/AMR.490-495.1202),
   *Advanced Materials Research*, 490–495:1202–1206, 2012.
